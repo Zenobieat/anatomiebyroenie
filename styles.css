@@ -227,6 +227,7 @@ body.is-fullscreen-player .screen--catalog {
   font-size: clamp(2rem, 3vw, 2.7rem);
 }
 
+/* catalogus moet volledige hoogte en breedte gebruiken */
 .catalog-grid {
   display: grid;
   /* Twee kolommen die nu het volledige scherm uitrekken */
@@ -283,6 +284,32 @@ body.is-fullscreen-player .panel--menu {
 
 body.is-fullscreen-player .workspace__play {
   min-height: calc(100vh - clamp(6rem, 10vh, 8rem));
+}
+
+.quiz-grid {
+  /* Vier hoofdkeuzes tonen als twee kaarten naast elkaar per rij */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+  flex: 1;
+}
+
+.panel--menu {
+  position: sticky;
+  top: clamp(1rem, 2vw, 2.5rem);
+  align-self: stretch;
+  min-height: calc(100vh - clamp(11rem, 16vh, 15rem));
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.workspace__play {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: calc(100vh - clamp(11rem, 16vh, 15rem));
 }
 
 .quiz-grid {
