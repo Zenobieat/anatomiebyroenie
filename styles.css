@@ -216,6 +216,7 @@ img {
   font-size: clamp(2rem, 3vw, 2.7rem);
 }
 
+/* catalogus moet volledige hoogte en breedte gebruiken */
 .catalog-grid {
   display: grid;
   /* Twee kolommen die nu het volledige scherm uitrekken */
@@ -223,6 +224,14 @@ img {
   gap: clamp(1.5rem, 2vw, 2.75rem);
   flex: 1;
   align-items: stretch;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 2rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 
 .panel {
