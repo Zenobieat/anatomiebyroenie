@@ -2603,7 +2603,7 @@ function renderMenu() {
   }
 
   quizGrid.innerHTML = sectionsWithContent
-    .map((section, index) => {
+    .map((section) => {
       const itemsMarkup = section.quizzes
         .map(
           (quiz) => `
@@ -2617,7 +2617,7 @@ function renderMenu() {
         .join("");
 
       return `
-        <details class="menu-section" ${index === 0 ? "open" : ""}>
+        <details class="menu-section">
           <summary>
             <span>${section.title}</span>
             <span class="menu-section__count">${section.quizzes.length}</span>
@@ -2632,6 +2632,19 @@ function renderMenu() {
 
   quizGrid.querySelectorAll(".quiz-option").forEach((button) => {
     button.addEventListener("click", () => startQuiz(button.dataset.id));
+  });
+
+  // Accordion-gedrag: er blijft maximaal één categorie tegelijk open.
+  const accordionSections = quizGrid.querySelectorAll(".menu-section");
+  accordionSections.forEach((section) => {
+    section.addEventListener("toggle", () => {
+      if (!section.open) return;
+      accordionSections.forEach((otherSection) => {
+        if (otherSection !== section) {
+          otherSection.open = false;
+        }
+      });
+    });
   });
 }
 
