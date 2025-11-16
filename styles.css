@@ -209,7 +209,7 @@ img {
 .catalog-grid {
   display: grid;
   /* Ruimte vrijmaken zodat het menu effectief twee kolommen kan tonen */
-  grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
   gap: 2rem;
   align-items: start;
 }
@@ -247,9 +247,11 @@ img {
 }
 
 .quiz-grid {
+  /* Vier hoofdkeuzes tonen als twee kaarten naast elkaar per rij */
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
 }
 
 .menu-section {
@@ -258,6 +260,8 @@ img {
   background: var(--card-strong);
   overflow: hidden;
   transition: border-color 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .menu-section summary {
@@ -291,8 +295,8 @@ img {
 .menu-section__list {
   list-style: none;
   padding: 0 1.5rem 1.5rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -307,6 +311,7 @@ img {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  min-height: 3.25rem;
 }
 
 .quiz-option:hover,
@@ -330,6 +335,10 @@ img {
 @media (max-width: 720px) {
   /* Op mobiele schermen tonen we elke categorie opnieuw onder elkaar */
   .quiz-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-section__list {
     grid-template-columns: 1fr;
   }
 }
@@ -395,8 +404,9 @@ img {
 }
 
 .options {
-  display: flex;
-  flex-direction: column;
+  /* De vier antwoordopties per vraag naast elkaar in twee kolommen */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -580,5 +590,9 @@ footer {
 
   .question-zone {
     padding: 1.25rem;
+  }
+
+  .options {
+    grid-template-columns: 1fr;
   }
 }
