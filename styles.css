@@ -45,12 +45,17 @@ img {
 
 .screen {
   display: none;
-  width: min(1400px, 100%);
-  margin: 0 auto;
+  width: 100%;
   padding: 0 clamp(1rem, 4vw, 4rem) 4rem;
   opacity: 0;
   transform: translateY(30px);
   transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* Startscherm blijft gecentreerd terwijl de catalogus straks de volle breedte krijgt */
+.screen--start {
+  width: min(1400px, 100%);
+  margin: 0 auto;
 }
 
 .screen.is-visible {
@@ -60,8 +65,10 @@ img {
 }
 
 .screen--catalog {
-  padding-top: 3rem;
-  padding-bottom: 4rem;
+  width: min(1900px, 98vw);
+  margin: 0 auto;
+  padding-top: clamp(2.5rem, 4vw, 4rem);
+  padding-bottom: clamp(3rem, 4vw, 5rem);
 }
 
 .hero {
@@ -192,6 +199,9 @@ img {
 
 .workspace {
   padding-bottom: 2rem;
+  min-height: calc(100vh - clamp(8rem, 12vh, 11rem));
+  display: flex;
+  flex-direction: column;
 }
 
 .catalog-header {
@@ -209,10 +219,19 @@ img {
 /* catalogus moet volledige hoogte en breedte gebruiken */
 .catalog-grid {
   display: grid;
-  /* Ruimte vrijmaken zodat het menu effectief twee kolommen kan tonen */
-  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: start;
+  /* Twee kolommen die nu het volledige scherm uitrekken */
+  grid-template-columns: clamp(360px, 42vw, 700px) minmax(0, 1fr);
+  gap: clamp(1.5rem, 2vw, 2.75rem);
+  flex: 1;
+  align-items: stretch;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 2rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 
 .panel {
@@ -237,22 +256,28 @@ img {
 
 .panel--menu {
   position: sticky;
-  top: 2rem;
-  align-self: start;
+  top: clamp(1rem, 2vw, 2.5rem);
+  align-self: stretch;
+  min-height: calc(100vh - clamp(11rem, 16vh, 15rem));
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .workspace__play {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-height: calc(100vh - clamp(11rem, 16vh, 15rem));
 }
 
 .quiz-grid {
   /* Vier hoofdkeuzes tonen als twee kaarten naast elkaar per rij */
   display: grid;
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
   align-items: stretch;
+  flex: 1;
 }
 
 .menu-section {
@@ -330,6 +355,11 @@ img {
 
   .panel--menu {
     position: static;
+    min-height: auto;
+  }
+
+  .workspace__play {
+    min-height: auto;
   }
 }
 
@@ -374,6 +404,13 @@ img {
   display: none;
 }
 
+/* Laat de actieve quizpanelen het speelgedeelte vullen */
+.workspace__play .panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .quiz-head {
   display: flex;
   flex-wrap: wrap;
@@ -388,7 +425,7 @@ img {
 }
 
 .question-zone {
-  min-height: 360px;
+  min-height: clamp(340px, 40vh, 520px);
   border: 1px solid var(--border);
   border-radius: 24px;
   padding: clamp(1.5rem, 4vw, 2.5rem);
@@ -398,6 +435,7 @@ img {
   flex-direction: column;
   justify-content: center;
   gap: 1.5rem;
+  flex: 1;
 }
 
 .question-zone h4 {
@@ -420,6 +458,7 @@ img {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
+  color: var(--ink); /* Forse lichte tekst zodat opties leesbaar blijven op donkere achtergrond */
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
 }
@@ -427,6 +466,11 @@ img {
 .option:hover {
   transform: translateY(-2px);
   border-color: var(--accent-blue);
+}
+
+.option strong,
+.option span {
+  color: inherit;
 }
 
 .option strong {
@@ -450,7 +494,8 @@ img {
 }
 
 .quiz-footer {
-  margin-top: 1.5rem;
+  margin-top: auto;
+  padding-top: 1.5rem;
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -567,16 +612,6 @@ footer {
   100% {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@media (max-width: 1100px) {
-  .catalog-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .panel--menu {
-    position: static;
   }
 }
 
