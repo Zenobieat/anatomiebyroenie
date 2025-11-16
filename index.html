@@ -94,7 +94,10 @@
           <div class="workspace__play">
             <section id="quizPlayground" class="panel panel--hidden">
               <div class="quiz-head">
-                <button class="btn ghost" id="backToMenu">← Terug naar hoofdmenu</button>
+                <div class="quiz-head__controls">
+                  <button class="btn ghost" id="backToMenu">← Terug naar hoofdmenu</button>
+                  <button class="btn outline" id="openFullScreen">↗ Volledig tabblad</button>
+                </div>
                 <div class="quiz-head__info">
                   <p id="quizLevel"></p>
                   <h3 id="quizTitle"></h3>
@@ -108,7 +111,10 @@
                     <div id="progressBar"></div>
                   </div>
                 </div>
-                <button class="btn primary" id="nextQuestion" disabled>Volgende vraag</button>
+                <div class="quiz-nav">
+                  <button class="btn ghost" id="prevQuestion" disabled>Vorige vraag</button>
+                  <button class="btn primary" id="nextQuestion" disabled>Volgende vraag</button>
+                </div>
               </div>
             </section>
 

@@ -2517,6 +2517,7 @@ const questionZone = document.getElementById("questionZone");
 const progressCounter = document.getElementById("progressCounter");
 const progressBar = document.getElementById("progressBar");
 const nextQuestionBtn = document.getElementById("nextQuestion");
+const prevQuestionBtn = document.getElementById("prevQuestion");
 const quizTitle = document.getElementById("quizTitle");
 const quizLevel = document.getElementById("quizLevel");
 const resultTitle = document.getElementById("resultTitle");
@@ -2524,6 +2525,8 @@ const resultScore = document.getElementById("resultScore");
 const resultDetails = document.getElementById("resultDetails");
 const screens = document.querySelectorAll("[data-screen]");
 const catalogScreen = document.getElementById("catalogScreen");
+const openFullScreenBtn = document.getElementById("openFullScreen");
+const bodyEl = document.body;
 
 const menuSections = [
   {
@@ -2553,6 +2556,17 @@ const state = {
 
 const letters = ["A", "B", "C", "D"];
 const questionAnimationClass = "question-zone--animate";
+
+function setFullScreenMode(isEnabled, { resetUrl = false } = {}) {
+  if (!bodyEl) return;
+  bodyEl.classList.toggle("is-fullscreen-player", Boolean(isEnabled));
+  if (resetUrl && !isEnabled) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("view");
+    url.searchParams.delete("quiz");
+    window.history.replaceState({}, "", url);
+  }
+}
 
 function shortQuizLabel(quiz) {
   const parts = quiz.title.split("—");
@@ -2653,7 +2667,7 @@ function startQuiz(id) {
   if (!quiz) return;
   state.currentQuiz = quiz;
   state.currentIndex = 0;
-  state.answers = [];
+  state.answers = Array(quiz.questions.length).fill(null);
   state.selectedOption = null;
   quizTitle.textContent = quiz.title;
   quizLevel.textContent = quiz.level;
@@ -2671,8 +2685,8 @@ function renderQuestion() {
   const quiz = state.currentQuiz;
   if (!quiz) return;
   const question = quiz.questions[state.currentIndex];
-  nextQuestionBtn.disabled = true;
-  state.selectedOption = null;
+  const savedSelection = state.answers[state.currentIndex];
+  state.selectedOption = savedSelection;
   progressCounter.textContent = `Vraag ${state.currentIndex + 1} van ${quiz.questions.length}`;
   const progressValue = (state.currentIndex / quiz.questions.length) * 100;
   progressBar.style.width = `${progressValue}%`;
@@ -2680,7 +2694,7 @@ function renderQuestion() {
   const optionsMarkup = question.options
     .map(
       (option, index) => `
-        <button class="option" data-index="${index}">
+        <button class="option ${savedSelection === index ? "selected" : ""}" data-index="${index}">
           <strong>${letters[index]}</strong>
           <span>${option}</span>
         </button>
@@ -2698,26 +2712,26 @@ function renderQuestion() {
     optionBtn.addEventListener("click", () => selectOption(optionBtn));
   });
 
-  nextQuestionBtn.textContent =
-    state.currentIndex === quiz.questions.length - 1 ? "Toon resultaat" : "Volgende vraag";
+  const isLastQuestion = state.currentIndex === quiz.questions.length - 1;
+  nextQuestionBtn.textContent = isLastQuestion ? "Toon resultaat" : "Volgende vraag";
+  nextQuestionBtn.disabled = savedSelection === null;
+  if (prevQuestionBtn) {
+    prevQuestionBtn.disabled = state.currentIndex === 0;
+  }
 }
 
 function selectOption(button) {
   questionZone.querySelectorAll(".option").forEach((btn) => btn.classList.remove("selected"));
   button.classList.add("selected");
   state.selectedOption = Number(button.dataset.index);
+  state.answers[state.currentIndex] = state.selectedOption;
   nextQuestionBtn.disabled = false;
 }
 
 nextQuestionBtn.addEventListener("click", () => {
   if (state.selectedOption === null) return;
   const quiz = state.currentQuiz;
-  state.answers.push({
-    questionIndex: state.currentIndex,
-    selected: state.selectedOption,
-    correct: quiz.questions[state.currentIndex].answer
-  });
-
+  state.answers[state.currentIndex] = state.selectedOption;
   if (state.currentIndex < quiz.questions.length - 1) {
     state.currentIndex += 1;
     renderQuestion();
@@ -2725,6 +2739,14 @@ nextQuestionBtn.addEventListener("click", () => {
     showResults();
   }
 });
+
+if (prevQuestionBtn) {
+  prevQuestionBtn.addEventListener("click", () => {
+    if (state.currentIndex === 0) return;
+    state.currentIndex -= 1;
+    renderQuestion();
+  });
+}
 
 function animateQuestionZone() {
   if (!questionZone) return;
@@ -2735,23 +2757,29 @@ function animateQuestionZone() {
 
 function showResults() {
   const quiz = state.currentQuiz;
-  const correctAnswers = state.answers.filter((answer) => answer.selected === answer.correct).length;
+  const correctAnswers = state.answers.filter(
+    (selected, index) => selected === quiz.questions[index].answer
+  ).length;
   const scoreOn20 = (correctAnswers / quiz.questions.length) * 20;
   resultTitle.textContent = quiz.title;
   resultScore.innerHTML = `<span class="result-score">${scoreOn20.toFixed(1)} / 20</span><br>${correctAnswers} van ${quiz.questions.length} juist`;
 
-  const detailsMarkup = state.answers
-    .map((answer, idx) => {
-      const question = quiz.questions[answer.questionIndex];
-      const isCorrect = answer.selected === answer.correct;
+  const detailsMarkup = quiz.questions
+    .map((question, idx) => {
+      const selected = state.answers[idx];
+      const isCorrect = selected === question.answer;
       return `
         <div class="result-detail ${isCorrect ? "correct" : "incorrect"}">
           <p><strong>${idx + 1}.</strong> ${question.prompt}</p>
-          <p>Jouw antwoord: ${letters[answer.selected]} – ${question.options[answer.selected]}</p>
+          <p>Jouw antwoord: ${
+            selected !== null
+              ? `${letters[selected]} – ${question.options[selected]}`
+              : "(Niet ingevuld)"
+          }</p>
           ${
             isCorrect
               ? "<p>✅ Helemaal goed!</p>"
-              : `<p>Correct: ${letters[answer.correct]} – ${question.options[answer.correct]}</p>`
+              : `<p>Correct: ${letters[question.answer]} – ${question.options[question.answer]}</p>`
           }
         </div>
       `;
@@ -2787,6 +2815,7 @@ function openCatalogView() {
 backToMenu.addEventListener("click", () => {
   state.currentQuiz = null;
   togglePanels("menu");
+  setFullScreenMode(false, { resetUrl: true });
 });
 
 retryQuiz.addEventListener("click", () => {
@@ -2798,18 +2827,49 @@ returnHome.addEventListener("click", () => {
   state.currentQuiz = null;
   togglePanels("menu");
   showScreen("catalog");
+  setFullScreenMode(false, { resetUrl: true });
 });
 
 if (scrollToQuizzes) {
   scrollToQuizzes.addEventListener("click", openCatalogView);
 }
 
+if (openFullScreenBtn) {
+  openFullScreenBtn.addEventListener("click", () => {
+    if (!state.currentQuiz) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("quiz", state.currentQuiz.id);
+    url.searchParams.set("view", "fullscreen");
+    const newTab = window.open(url.toString(), "_blank");
+    if (newTab) {
+      newTab.opener = null;
+    }
+  });
+}
+
 if (goToLanding) {
   goToLanding.addEventListener("click", () => {
     showScreen("start");
+    setFullScreenMode(false, { resetUrl: true });
   });
 }
 
 showScreen("start");
 
 renderMenu();
+
+const urlParams = new URLSearchParams(window.location.search);
+const initialQuizId = urlParams.get("quiz");
+const wantsFullScreen = urlParams.get("view") === "fullscreen";
+const quizExists = initialQuizId && quizData.some((quiz) => quiz.id === initialQuizId);
+
+if (wantsFullScreen && quizExists) {
+  setFullScreenMode(true);
+}
+
+if (quizExists) {
+  openCatalogView();
+  startQuiz(initialQuizId);
+} else if (wantsFullScreen) {
+  setFullScreenMode(false, { resetUrl: true });
+}
