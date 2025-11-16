@@ -206,6 +206,7 @@ img {
   font-size: clamp(2rem, 3vw, 2.7rem);
 }
 
+/* catalogus moet volledige hoogte en breedte gebruiken */
 .catalog-grid {
   display: grid;
   /* Ruimte vrijmaken zodat het menu effectief twee kolommen kan tonen */
