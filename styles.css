@@ -43,13 +43,11 @@ img {
   display: block;
 }
 
-/* schermsecties laten nu de volledige breedte gebruiken */
 .screen {
   display: none;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0 clamp(1.5rem, 5vw, 5rem) 4rem;
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 4rem) 4rem;
   opacity: 0;
   transform: translateY(30px);
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -194,7 +192,6 @@ img {
 
 .workspace {
   padding-bottom: 2rem;
-  min-height: calc(100vh - 6rem);
 }
 
 .catalog-header {
@@ -212,10 +209,10 @@ img {
 /* catalogus moet volledige hoogte en breedte gebruiken */
 .catalog-grid {
   display: grid;
-  grid-template-columns: minmax(360px, 520px) minmax(0, 1fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: stretch;
-  min-height: calc(100vh - 8rem);
+  /* Ruimte vrijmaken zodat het menu effectief twee kolommen kan tonen */
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
 }
 
 .panel {
@@ -240,23 +237,14 @@ img {
 
 .panel--menu {
   position: sticky;
-  top: 1.5rem;
-  align-self: stretch;
-  height: calc(100vh - 5rem);
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-}
-
-.panel--menu .panel__header {
-  padding-right: 0.5rem;
+  top: 2rem;
+  align-self: start;
 }
 
 .workspace__play {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  min-height: calc(100vh - 5rem);
 }
 
 .quiz-grid {
@@ -338,16 +326,10 @@ img {
 @media (max-width: 1200px) {
   .catalog-grid {
     grid-template-columns: 1fr;
-    min-height: auto;
   }
 
   .panel--menu {
     position: static;
-    height: auto;
-  }
-
-  .workspace__play {
-    min-height: auto;
   }
 }
 
