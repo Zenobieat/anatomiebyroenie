@@ -3408,6 +3408,10 @@ if (googleLoginBtn) {
     handleGoogleLogin();
   });
 }
+function handleLogin(response) {
+  console.log("Google login geslaagd!");
+  alert("Je bent ingelogd!");
+}
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", handleLogout);
