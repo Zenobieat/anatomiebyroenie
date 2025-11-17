@@ -169,11 +169,30 @@ body.is-fullscreen-player .screen--catalog {
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 35px 90px rgba(0, 0, 0, 0.45);
   padding: 1.8rem;
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
   opacity: 0;
   visibility: hidden;
   transform: translateY(10px);
   transition: opacity 0.25s ease, transform 0.25s ease;
   pointer-events: none;
+}
+
+.profile-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.profile-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.profile-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
 }
 
 .profile-dropdown.is-open {
