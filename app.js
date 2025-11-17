@@ -2573,6 +2573,8 @@ const state = {
   answers: []
 };
 
+let currentAuthMode = "login";
+
 const storageKeys = {
   accounts: "anatomie_accounts",
   currentUser: "anatomie_current_user"
@@ -2586,15 +2588,48 @@ const accountState = {
 const letters = ["A", "B", "C", "D"];
 const questionAnimationClass = "question-zone--animate";
 
+function normalizeEmail(value = "") {
+  return value.trim().toLowerCase();
+}
+
+function sanitizeUsername(value = "") {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function loadStoredAccounts() {
   if (typeof window === "undefined" || !window.localStorage) return {};
   try {
     const raw = window.localStorage.getItem(storageKeys.accounts);
-    return raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    return normalizeAccounts(parsed);
   } catch (error) {
     console.warn("Kan accounts niet laden", error);
     return {};
   }
+}
+
+function normalizeAccounts(source = {}) {
+  return Object.keys(source).reduce((acc, key) => {
+    const account = source[key];
+    if (!account || typeof account !== "object") return acc;
+    const normalizedEmail = (account.email || key || "").toLowerCase();
+    if (!normalizedEmail) return acc;
+    const username = sanitizeUsername(account.username || normalizedEmail.split("@")[0] || "student");
+    acc[normalizedEmail] = {
+      ...account,
+      email: normalizedEmail,
+      username,
+      usernameLower: username.toLowerCase(),
+      methods: {
+        password: Boolean(account.methods?.password || account.password),
+        google: Boolean(account.methods?.google)
+      },
+      history: Array.isArray(account.history) ? account.history : [],
+      lastLoginProvider: account.lastLoginProvider || (account.methods?.google ? "google" : "password"),
+      verificationSentAt: account.verificationSentAt || account.createdAt || new Date().toISOString()
+    };
+    return acc;
+  }, {});
 }
 
 function saveStoredAccounts(accounts) {
@@ -2604,21 +2639,23 @@ function saveStoredAccounts(accounts) {
 
 function loadStoredCurrentUser() {
   if (typeof window === "undefined" || !window.localStorage) return null;
-  return window.localStorage.getItem(storageKeys.currentUser);
+  const stored = window.localStorage.getItem(storageKeys.currentUser);
+  return stored ? stored.toLowerCase() : null;
 }
 
 function persistCurrentUser(email) {
   if (typeof window === "undefined" || !window.localStorage) return;
   if (email) {
-    window.localStorage.setItem(storageKeys.currentUser, email);
+    window.localStorage.setItem(storageKeys.currentUser, email.toLowerCase());
   } else {
     window.localStorage.removeItem(storageKeys.currentUser);
   }
 }
 
 function setCurrentUser(email) {
-  accountState.currentUser = email;
-  persistCurrentUser(email);
+  const normalized = email ? email.toLowerCase() : null;
+  accountState.currentUser = normalized;
+  persistCurrentUser(normalized);
 }
 
 function getCurrentAccount() {
@@ -2626,9 +2663,13 @@ function getCurrentAccount() {
   return accountState.accounts[accountState.currentUser] || null;
 }
 
-function createAccount(email, { password = "", method = "password" } = {}) {
+function createAccount({ email, username = "", password = "", method = "password" } = {}) {
+  const normalizedEmail = normalizeEmail(email);
+  const safeUsername = sanitizeUsername(username || normalizedEmail.split("@")[0] || "student");
   return {
-    email,
+    email: normalizedEmail,
+    username: safeUsername,
+    usernameLower: safeUsername.toLowerCase(),
     password,
     methods: {
       password: method === "password",
@@ -2636,8 +2677,28 @@ function createAccount(email, { password = "", method = "password" } = {}) {
     },
     history: [],
     createdAt: new Date().toISOString(),
+    verificationSentAt: new Date().toISOString(),
     lastLoginProvider: method
   };
+}
+
+function isUsernameTaken(username, ignoreEmail) {
+  if (!username) return false;
+  const target = username.toLowerCase();
+  return Object.entries(accountState.accounts).some(([email, account]) => {
+    if (ignoreEmail && email === ignoreEmail) return false;
+    return account.usernameLower === target;
+  });
+}
+
+function findAccountByIdentifier(identifier) {
+  if (!identifier) return null;
+  const normalized = identifier.trim().toLowerCase();
+  if (accountState.accounts[normalized]) {
+    return accountState.accounts[normalized];
+  }
+  const match = Object.values(accountState.accounts).find((account) => account.usernameLower === normalized);
+  return match || null;
 }
 
 function setAuthFeedback(message = "", variant = "success") {
@@ -2646,6 +2707,42 @@ function setAuthFeedback(message = "", variant = "success") {
   authFeedback.classList.remove("profile-feedback--error", "profile-feedback--success");
   if (!message) return;
   authFeedback.classList.add(variant === "error" ? "profile-feedback--error" : "profile-feedback--success");
+}
+
+function setAuthMode(mode = "login") {
+  currentAuthMode = mode === "register" ? "register" : "login";
+  if (authForm) {
+    authForm.dataset.mode = currentAuthMode;
+  }
+  if (authModeButtons.length) {
+    authModeButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.authMode === currentAuthMode);
+    });
+  }
+  if (authSubmitButton) {
+    authSubmitButton.textContent = currentAuthMode === "register" ? "Registreren" : "Inloggen";
+  }
+  if (authIdentifierInput) {
+    authIdentifierInput.required = currentAuthMode === "login";
+  }
+  if (authEmailInput) {
+    authEmailInput.required = currentAuthMode === "register";
+  }
+  if (authUsernameInput) {
+    authUsernameInput.required = currentAuthMode === "register";
+  }
+  if (authPasswordInput) {
+    const autocompleteValue = currentAuthMode === "login" ? "current-password" : "new-password";
+    authPasswordInput.setAttribute("autocomplete", autocompleteValue);
+  }
+  if (currentAuthMode === "register" && authForm) {
+    authForm.querySelectorAll("[data-auth-visible='login'] input").forEach((input) => input.removeAttribute("required"));
+  }
+  setAuthFeedback("");
+}
+
+function getAuthMode() {
+  return currentAuthMode;
 }
 
 function updateProfileUI() {
@@ -2660,27 +2757,44 @@ function updateProfileUI() {
   }
 
   const fallbackLabel = "Jouw profiel";
-  const displayLabel = isLoggedIn ? account.email : fallbackLabel;
+  const displayLabel = isLoggedIn ? account.username || account.email : fallbackLabel;
   if (profileToggleLabel) {
     profileToggleLabel.textContent = displayLabel;
   }
-  const avatarLetter = isLoggedIn ? account.email.charAt(0).toUpperCase() : "A";
+  const avatarSource = isLoggedIn ? displayLabel : "A";
+  const avatarLetter = avatarSource.charAt(0).toUpperCase();
   if (profileAvatar) {
     profileAvatar.textContent = avatarLetter;
   }
   if (profileAvatarLarge) {
     profileAvatarLarge.textContent = avatarLetter;
   }
-  if (isLoggedIn && profileEmailEl && profileProviderEl) {
-    profileEmailEl.textContent = account.email;
-    const providerLabel = account.lastLoginProvider === "google" ? "Ingelogd via Google" : "Ingelogd met wachtwoord";
-    profileProviderEl.textContent = providerLabel;
+  if (isLoggedIn) {
+    if (profileDisplayNameEl) {
+      profileDisplayNameEl.textContent = displayLabel;
+    }
+    if (profileContactEl) {
+      profileContactEl.textContent = account.email;
+    }
+    if (profileProviderEl) {
+      const providerLabel = account.lastLoginProvider === "google" ? "Ingelogd via Google" : "Ingelogd met wachtwoord";
+      profileProviderEl.textContent = providerLabel;
+    }
+    if (profileVerificationEl) {
+      const sentAt = account.verificationSentAt ? new Date(account.verificationSentAt) : null;
+      profileVerificationEl.textContent = sentAt
+        ? `Laatste bevestiging: ${sentAt.toLocaleDateString("nl-BE", { day: "2-digit", month: "short" })}`
+        : "";
+    }
   }
   if (!isLoggedIn && historyList) {
     historyList.innerHTML = "";
   }
   if (!isLoggedIn && historyEmpty) {
     historyEmpty.hidden = false;
+  }
+  if (!isLoggedIn && profileVerificationEl) {
+    profileVerificationEl.textContent = "";
   }
   if (isLoggedIn) {
     renderHistory(account.history || []);
@@ -2700,65 +2814,136 @@ function closeProfileDropdown() {
 
 function handleCredentialLogin(event) {
   event.preventDefault();
-  if (!authEmailInput || !authPasswordInput) return;
-  const email = authEmailInput.value.trim().toLowerCase();
+  if (!authPasswordInput) return;
+  const mode = getAuthMode();
   const password = authPasswordInput.value.trim();
-  if (!email || password.length < 4) {
-    setAuthFeedback("Vul een geldig e-mailadres en wachtwoord (min. 4 tekens) in.", "error");
+  if (password.length < 4) {
+    setAuthFeedback("Gebruik minstens 4 tekens voor je wachtwoord.", "error");
     return;
   }
+
+  if (mode === "login") {
+    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
+    if (!identifier) {
+      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in.", "error");
+      return;
+    }
+    const account = findAccountByIdentifier(identifier);
+    if (!account) {
+      setAuthFeedback("We vinden geen account met deze gegevens.", "error");
+      return;
+    }
+    if (!account.methods.password) {
+      setAuthFeedback("Log voor dit account in via Google.", "error");
+      return;
+    }
+    if (!account.password || account.password !== password) {
+      setAuthFeedback("Het wachtwoord klopt niet.", "error");
+      return;
+    }
+    account.lastLoginProvider = "password";
+    accountState.accounts[account.email] = account;
+    saveStoredAccounts(accountState.accounts);
+    setCurrentUser(account.email);
+    updateProfileUI();
+    setAuthFeedback(`Welkom terug, ${account.username}!`);
+    if (authForm) {
+      authForm.reset();
+    }
+    return;
+  }
+
+  const usernameValue = authUsernameInput ? sanitizeUsername(authUsernameInput.value) : "";
+  const emailValue = authEmailInput ? normalizeEmail(authEmailInput.value || "") : "";
+  if (!usernameValue || usernameValue.length < 2) {
+    setAuthFeedback("Kies een gebruikersnaam van minstens 2 tekens.", "error");
+    return;
+  }
+  if (!emailValue) {
+    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
+    return;
+  }
+  if (accountState.accounts[emailValue]) {
+    setAuthFeedback("Er bestaat al een account met dit e-mailadres.", "error");
+    return;
+  }
+  if (isUsernameTaken(usernameValue)) {
+    setAuthFeedback("Deze gebruikersnaam is al in gebruik.", "error");
+    return;
+  }
+
   const accounts = { ...accountState.accounts };
-  const existing = accounts[email];
-  if (existing && existing.methods?.password && existing.password && existing.password !== password) {
-    setAuthFeedback("Dit wachtwoord komt niet overeen met je account.", "error");
-    return;
-  }
-  if (!existing) {
-    accounts[email] = createAccount(email, { password, method: "password" });
-  } else {
-    existing.password = password;
-    existing.methods = {
-      password: true,
-      google: Boolean(existing.methods?.google)
-    };
-    existing.lastLoginProvider = "password";
-  }
+  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password, method: "password" });
   accountState.accounts = accounts;
   saveStoredAccounts(accounts);
-  setCurrentUser(email);
+  setCurrentUser(emailValue);
   updateProfileUI();
-  setAuthFeedback(existing ? "Succesvol ingelogd." : "Account aangemaakt.");
+  setAuthFeedback(`Account aangemaakt. We stuurden een bevestiging naar ${emailValue}.`);
   if (authForm) {
     authForm.reset();
   }
+  setAuthMode("login");
 }
 
 function handleGoogleLogin() {
-  if (!authEmailInput) return;
-  const email = authEmailInput.value.trim().toLowerCase();
-  if (!email) {
-    setAuthFeedback("Vul je e-mailadres in om Google-login te gebruiken.", "error");
+  const mode = getAuthMode();
+  if (mode === "login") {
+    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
+    if (!identifier) {
+      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in om verder te gaan.", "error");
+      return;
+    }
+    const account = findAccountByIdentifier(identifier);
+    if (!account) {
+      setAuthFeedback("Geen account gevonden voor deze gegevens.", "error");
+      return;
+    }
+    account.methods = {
+      password: Boolean(account.methods?.password),
+      google: true
+    };
+    account.lastLoginProvider = "google";
+    accountState.accounts[account.email] = account;
+    saveStoredAccounts(accountState.accounts);
+    setCurrentUser(account.email);
+    updateProfileUI();
+    setAuthFeedback(`Ingelogd via Google als ${account.username}.`);
+    if (authForm) {
+      authForm.reset();
+    }
+    return;
+  }
+
+  if (!authEmailInput || !authUsernameInput) return;
+  const usernameValue = sanitizeUsername(authUsernameInput.value);
+  const emailValue = normalizeEmail(authEmailInput.value || "");
+  if (!usernameValue || usernameValue.length < 2) {
+    setAuthFeedback("Vul eerst je gewenste gebruikersnaam in.", "error");
+    return;
+  }
+  if (!emailValue) {
+    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
+    return;
+  }
+  if (accountState.accounts[emailValue]) {
+    setAuthFeedback("Dit e-mailadres is al gekoppeld aan een account.", "error");
+    return;
+  }
+  if (isUsernameTaken(usernameValue)) {
+    setAuthFeedback("Deze gebruikersnaam is al bezet.", "error");
     return;
   }
   const accounts = { ...accountState.accounts };
-  const existing = accounts[email];
-  if (!existing) {
-    accounts[email] = createAccount(email, { password: "", method: "google" });
-  } else {
-    existing.methods = {
-      password: Boolean(existing.methods?.password),
-      google: true
-    };
-    existing.lastLoginProvider = "google";
-  }
+  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password: "", method: "google" });
   accountState.accounts = accounts;
   saveStoredAccounts(accounts);
-  setCurrentUser(email);
+  setCurrentUser(emailValue);
   updateProfileUI();
-  setAuthFeedback("Ingelogd via Google.");
+  setAuthFeedback(`Account aangemaakt via Google. Controleer ${emailValue} voor onze bevestigingsmail.`);
   if (authForm) {
     authForm.reset();
   }
+  setAuthMode("login");
 }
 
 function handleLogout() {
@@ -3191,6 +3376,14 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+if (authModeButtons.length) {
+  authModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setAuthMode(button.dataset.authMode);
+    });
+  });
+}
+
 if (authForm) {
   authForm.addEventListener("submit", handleCredentialLogin);
 }
@@ -3216,6 +3409,8 @@ if (historyList) {
     startQuiz(quizId);
   });
 }
+
+setAuthMode("login");
 
 updateProfileUI();
 

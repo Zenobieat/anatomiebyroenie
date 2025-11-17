@@ -53,22 +53,37 @@
             <p>
               Maak gratis een account om scores lokaal op te slaan en later te verbeteren. Je gegevens blijven op dit toestel.
             </p>
-            <form id="authForm" class="profile-form">
-              <label>
+            <form id="authForm" class="profile-form" data-mode="login">
+              <div class="profile-tabs" role="tablist" aria-label="Kies login of registratie">
+                <button type="button" class="profile-tab is-active" data-auth-mode="login">Inloggen</button>
+                <button type="button" class="profile-tab" data-auth-mode="register">Registreren</button>
+              </div>
+              <label data-auth-visible="login">
+                <span>E-mailadres of gebruikersnaam</span>
+                <input type="text" id="authIdentifier" placeholder="naam@student.hogent.be of bijnaam" autocomplete="username" />
+              </label>
+              <label data-auth-visible="register">
+                <span>Gebruikersnaam</span>
+                <input type="text" id="authUsername" placeholder="Kies een bijnaam" minlength="2" autocomplete="nickname" />
+              </label>
+              <label data-auth-visible="register">
                 <span>E-mailadres</span>
-                <input type="email" id="authEmail" placeholder="naam@student.hogent.be" required />
+                <input type="email" id="authEmail" placeholder="naam@student.hogent.be" autocomplete="email" />
               </label>
               <label>
                 <span>Wachtwoord</span>
-                <input type="password" id="authPassword" placeholder="Min. 4 tekens" minlength="4" required />
+                <input type="password" id="authPassword" placeholder="Min. 4 tekens" minlength="4" autocomplete="new-password" />
               </label>
-              <button type="submit" class="btn primary">Account aanmaken of inloggen</button>
+              <p class="profile-hint" data-auth-visible="register">
+                Na registratie sturen we een bevestigingsmail naar je inbox zodat je account actief blijft.
+              </p>
+              <button type="submit" class="btn primary" id="authSubmit">Inloggen</button>
             </form>
             <div class="profile-divider">
               <span>of</span>
             </div>
-            <button class="btn google" id="googleLogin">Log in met Google</button>
-            <p class="profile-hint">Tip: vul je e-mail in en kies zelf voor wachtwoord of Google-login.</p>
+            <button class="btn google" id="googleLogin">Ga verder met Google</button>
+            <p class="profile-hint">Tip: registreer eenmaal met e-mail of Google en log daarna in met je gebruikersnaam.</p>
             <p class="profile-feedback" id="authFeedback" role="status"></p>
           </div>
 
@@ -77,8 +92,10 @@
               <div class="profile-toggle__avatar profile-toggle__avatar--large" id="profileAvatarLarge" aria-hidden="true">A</div>
               <div>
                 <p class="hero__eyebrow">Ingelogd</p>
-                <h3 id="profileEmail">student@hogent.be</h3>
+                <h3 id="profileDisplayName">student</h3>
+                <p id="profileContact" class="profile-contact">student@hogent.be</p>
                 <p id="profileProvider">Aangemeld via wachtwoord</p>
+                <p id="profileVerification" class="profile-hint"></p>
               </div>
             </div>
             <div class="profile-actions">
