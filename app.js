@@ -2512,7 +2512,8 @@ const quizData = [
 const quizGrid = document.getElementById("quizGrid");
 const quizPlayground = document.getElementById("quizPlayground");
 const quizMenu = document.getElementById("quizMenu");
-const resultPanel = document.getElementById("resultPanel");
+const catalogGrid = document.querySelector(".catalog-grid");
+const workspacePlay = document.querySelector(".workspace__play");
 const questionZone = document.getElementById("questionZone");
 const progressCounter = document.getElementById("progressCounter");
 const progressBar = document.getElementById("progressBar");
@@ -2523,6 +2524,7 @@ const quizLevel = document.getElementById("quizLevel");
 const resultTitle = document.getElementById("resultTitle");
 const resultScore = document.getElementById("resultScore");
 const resultDetails = document.getElementById("resultDetails");
+const resultCelebration = document.getElementById("resultCelebration");
 const screens = document.querySelectorAll("[data-screen]");
 const catalogScreen = document.getElementById("catalogScreen");
 const openFullScreenBtn = document.getElementById("openFullScreen");
@@ -2560,12 +2562,27 @@ const questionAnimationClass = "question-zone--animate";
 function setFullScreenMode(isEnabled, { resetUrl = false } = {}) {
   if (!bodyEl) return;
   bodyEl.classList.toggle("is-fullscreen-player", Boolean(isEnabled));
-  if (resetUrl && !isEnabled) {
-    const url = new URL(window.location.href);
+  updateFullScreenButtonLabel();
+
+  const url = new URL(window.location.href);
+  if (isEnabled) {
+    if (state.currentQuiz) {
+      url.searchParams.set("quiz", state.currentQuiz.id);
+    }
+    url.searchParams.set("view", "fullscreen");
+  } else {
     url.searchParams.delete("view");
-    url.searchParams.delete("quiz");
-    window.history.replaceState({}, "", url);
+    if (resetUrl) {
+      url.searchParams.delete("quiz");
+    }
   }
+  window.history.replaceState({}, "", url);
+}
+
+function updateFullScreenButtonLabel() {
+  if (!openFullScreenBtn) return;
+  const isFullScreen = bodyEl.classList.contains("is-fullscreen-player");
+  openFullScreenBtn.textContent = isFullScreen ? "Normale weergave" : "Groter scherm";
 }
 
 function shortQuizLabel(quiz) {
@@ -2676,9 +2693,15 @@ function startQuiz(id) {
 }
 
 function togglePanels(view) {
-  quizMenu.classList.toggle("panel--hidden", view !== "menu");
-  quizPlayground.classList.toggle("panel--hidden", view !== "quiz");
-  resultPanel.classList.toggle("panel--hidden", view !== "result");
+  const isMenuView = view === "menu";
+  quizMenu.classList.toggle("panel--hidden", !isMenuView);
+  quizPlayground.classList.toggle("panel--hidden", isMenuView);
+  if (catalogGrid) {
+    catalogGrid.classList.toggle("catalog-grid--menu-only", isMenuView);
+  }
+  if (workspacePlay) {
+    workspacePlay.classList.toggle("workspace__play--hidden", isMenuView);
+  }
 }
 
 function renderQuestion() {
@@ -2764,6 +2787,13 @@ function showResults() {
   resultTitle.textContent = quiz.title;
   resultScore.innerHTML = `<span class="result-score">${scoreOn20.toFixed(1)} / 20</span><br>${correctAnswers} van ${quiz.questions.length} juist`;
 
+  const hasHighScore = scoreOn20 >= 15;
+  if (resultCelebration) {
+    resultCelebration.innerHTML = hasHighScore
+      ? '<p class="result-card__celebration">🎉 Fantastische score – je beheerst dit onderwerp!</p>'
+      : "";
+  }
+
   const detailsMarkup = quiz.questions
     .map((question, idx) => {
       const selected = state.answers[idx];
@@ -2778,7 +2808,7 @@ function showResults() {
           }</p>
           ${
             isCorrect
-              ? "<p>✅ Helemaal goed!</p>"
+              ? '<p class="result-detail__note">Correct beantwoord</p>'
               : `<p>Correct: ${letters[question.answer]} – ${question.options[question.answer]}</p>`
           }
         </div>
@@ -2788,12 +2818,13 @@ function showResults() {
 
   resultDetails.innerHTML = detailsMarkup;
   progressBar.style.width = "100%";
-  togglePanels("result");
+  showScreen("results");
 }
 
 const backToMenu = document.getElementById("backToMenu");
-const retryQuiz = document.getElementById("retryQuiz");
-const returnHome = document.getElementById("returnHome");
+const resultsRetry = document.getElementById("resultsRetry");
+const resultsBackToCatalog = document.getElementById("resultsBackToCatalog");
+const resultsGoHome = document.getElementById("resultsGoHome");
 const scrollToQuizzes = document.getElementById("scrollToQuizzes");
 const goToLanding = document.getElementById("goToLanding");
 
@@ -2818,17 +2849,31 @@ backToMenu.addEventListener("click", () => {
   setFullScreenMode(false, { resetUrl: true });
 });
 
-retryQuiz.addEventListener("click", () => {
-  if (!state.currentQuiz) return;
-  startQuiz(state.currentQuiz.id);
-});
+if (resultsRetry) {
+  resultsRetry.addEventListener("click", () => {
+    if (!state.currentQuiz) return;
+    showScreen("catalog");
+    startQuiz(state.currentQuiz.id);
+  });
+}
 
-returnHome.addEventListener("click", () => {
-  state.currentQuiz = null;
-  togglePanels("menu");
-  showScreen("catalog");
-  setFullScreenMode(false, { resetUrl: true });
-});
+if (resultsBackToCatalog) {
+  resultsBackToCatalog.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
+    showScreen("catalog");
+    setFullScreenMode(false, { resetUrl: true });
+  });
+}
+
+if (resultsGoHome) {
+  resultsGoHome.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
+    showScreen("start");
+    setFullScreenMode(false, { resetUrl: true });
+  });
+}
 
 if (scrollToQuizzes) {
   scrollToQuizzes.addEventListener("click", openCatalogView);
@@ -2837,26 +2882,26 @@ if (scrollToQuizzes) {
 if (openFullScreenBtn) {
   openFullScreenBtn.addEventListener("click", () => {
     if (!state.currentQuiz) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("quiz", state.currentQuiz.id);
-    url.searchParams.set("view", "fullscreen");
-    const newTab = window.open(url.toString(), "_blank");
-    if (newTab) {
-      newTab.opener = null;
-    }
+    const isFullScreen = bodyEl.classList.contains("is-fullscreen-player");
+    setFullScreenMode(!isFullScreen);
   });
 }
 
 if (goToLanding) {
   goToLanding.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
     showScreen("start");
     setFullScreenMode(false, { resetUrl: true });
   });
 }
 
+updateFullScreenButtonLabel();
+
 showScreen("start");
 
 renderMenu();
+togglePanels("menu");
 
 const urlParams = new URLSearchParams(window.location.search);
 const initialQuizId = urlParams.get("quiz");

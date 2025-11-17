@@ -18,7 +18,7 @@
         <div class="hero__content">
           <p class="hero__eyebrow">Welkom in de Anatomie Arena</p>
           <h1>
-            ✅ Anatomie Quiz Hub
+            Anatomie Quiz Hub
             <span>Nieuwe 20-vragen quizzen worden bot per bot toegevoegd</span>
           </h1>
           <p>
@@ -72,7 +72,7 @@
             </p>
           </div>
           <div class="catalog-header__actions">
-            <button class="btn ghost" id="goToLanding">← Terug naar start</button>
+            <button class="btn ghost" id="goToLanding">Terug naar start</button>
           </div>
         </header>
 
@@ -93,8 +93,8 @@
             <section id="quizPlayground" class="panel panel--hidden">
               <div class="quiz-head">
                 <div class="quiz-head__controls">
-                  <button class="btn ghost" id="backToMenu">← Terug naar hoofdmenu</button>
-                  <button class="btn outline" id="openFullScreen">↗ Volledig tabblad</button>
+                  <button class="btn ghost" id="backToMenu">Terug naar hoofdmenu</button>
+                  <button class="btn outline" id="openFullScreen">Groter scherm</button>
                 </div>
                 <div class="quiz-head__info">
                   <p id="quizLevel"></p>
@@ -116,25 +116,45 @@
               </div>
             </section>
 
-            <section id="resultPanel" class="panel panel--hidden">
-              <div class="result-card">
-                <p class="result-card__eyebrow">Quiz voltooid</p>
-                <h3 id="resultTitle"></h3>
-                <p id="resultScore"></p>
-                <div id="resultDetails" class="result-details"></div>
-                <div class="result-actions">
-                  <button class="btn ghost" id="retryQuiz">Probeer opnieuw</button>
-                  <button class="btn primary" id="returnHome">Terug naar menu</button>
-                </div>
-              </div>
-            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="screen screen--results" data-screen="results" id="resultsScreen">
+      <main class="results">
+        <header class="results__header">
+          <div>
+            <p class="hero__eyebrow">Quizresultaat</p>
+            <h2>Overzicht van je vooruitgang</h2>
+            <p>
+              Bekijk hier je score, ontdek welke vragen juist waren en navigeer vervolgens
+              terug naar het menu of het startscherm zonder de pagina te verlaten.
+            </p>
+          </div>
+          <div class="results__actions">
+            <button class="btn ghost" id="resultsBackToCatalog">Terug naar hoofdmenu</button>
+            <button class="btn outline" id="resultsGoHome">Naar startscherm</button>
+          </div>
+        </header>
+
+        <section id="resultPanel" class="panel panel--results">
+          <div class="result-card">
+            <p class="result-card__eyebrow">Quiz voltooid</p>
+            <h3 id="resultTitle"></h3>
+            <p id="resultScore"></p>
+            <div id="resultCelebration"></div>
+            <div id="resultDetails" class="result-details"></div>
+            <div class="result-actions">
+              <button class="btn primary" id="resultsRetry">Speel deze quiz opnieuw</button>
+            </div>
           </div>
         </section>
       </main>
     </div>
 
     <footer>
-      <p>Gemaakt met ❤️ voor anatomie – powered by GPT-5 Codex</p>
+      <p>Gemaakt met toewijding voor anatomie – powered by GPT-5 Codex</p>
     </footer>
 
     <script src="app.js" defer></script>
