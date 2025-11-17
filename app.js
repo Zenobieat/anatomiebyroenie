@@ -3325,14 +3325,6 @@ if (authModeButtons.length) {
 if (authForm) {
   authForm.addEventListener("submit", handleCredentialLogin);
 }
-
-if (googleLoginBtn) {
-  googleLoginBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    handleGoogleLogin();
-  });
-}
-
 if (logoutBtn) {
   logoutBtn.addEventListener("click", handleLogout);
 }
