@@ -2884,68 +2884,6 @@ function handleCredentialLogin(event) {
   }
   setAuthMode("login");
 }
-
-function handleGoogleLogin() {
-  const mode = getAuthMode();
-  if (mode === "login") {
-    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
-    if (!identifier) {
-      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in om verder te gaan.", "error");
-      return;
-    }
-    const account = findAccountByIdentifier(identifier);
-    if (!account) {
-      setAuthFeedback("Geen account gevonden voor deze gegevens.", "error");
-      return;
-    }
-    account.methods = {
-      password: Boolean(account.methods?.password),
-      google: true
-    };
-    account.lastLoginProvider = "google";
-    accountState.accounts[account.email] = account;
-    saveStoredAccounts(accountState.accounts);
-    setCurrentUser(account.email);
-    updateProfileUI();
-    setAuthFeedback(`Ingelogd via Google als ${account.username}.`);
-    if (authForm) {
-      authForm.reset();
-    }
-    return;
-  }
-
-  if (!authEmailInput || !authUsernameInput) return;
-  const usernameValue = sanitizeUsername(authUsernameInput.value);
-  const emailValue = normalizeEmail(authEmailInput.value || "");
-  if (!usernameValue || usernameValue.length < 2) {
-    setAuthFeedback("Vul eerst je gewenste gebruikersnaam in.", "error");
-    return;
-  }
-  if (!emailValue) {
-    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
-    return;
-  }
-  if (accountState.accounts[emailValue]) {
-    setAuthFeedback("Dit e-mailadres is al gekoppeld aan een account.", "error");
-    return;
-  }
-  if (isUsernameTaken(usernameValue)) {
-    setAuthFeedback("Deze gebruikersnaam is al bezet.", "error");
-    return;
-  }
-  const accounts = { ...accountState.accounts };
-  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password: "", method: "google" });
-  accountState.accounts = accounts;
-  saveStoredAccounts(accounts);
-  setCurrentUser(emailValue);
-  updateProfileUI();
-  setAuthFeedback(`Account aangemaakt via Google. Controleer ${emailValue} voor onze bevestigingsmail.`);
-  if (authForm) {
-    authForm.reset();
-  }
-  setAuthMode("login");
-}
-
 function handleLogout() {
   setCurrentUser(null);
   updateProfileUI();
