@@ -13,12 +13,90 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <header class="site-topbar" aria-label="Account en navigatie">
+      <div class="site-topbar__brand">
+        <span class="site-topbar__eyebrow">Anatomie Arena</span>
+        <strong>Anatomie Masterclass</strong>
+      </div>
+      <div class="site-topbar__actions">
+        <button id="profileToggle" class="profile-toggle" aria-expanded="false" aria-controls="profileDropdown">
+          <span id="profileToggleLabel">Jouw profiel</span>
+          <span class="profile-toggle__avatar" id="profileAvatar" aria-hidden="true">A</span>
+        </button>
+        <div class="profile-dropdown" id="profileDropdown" aria-live="polite">
+          <div class="profile-dropdown__section" id="profileLoggedOut">
+            <p class="hero__eyebrow">Jouw anatomieprofiel</p>
+            <h3>Bewaar je quizresultaten</h3>
+            <p>
+              Maak gratis een account om scores lokaal op te slaan en later te verbeteren. Je gegevens blijven op dit toestel.
+            </p>
+            <form id="authForm" class="profile-form" data-mode="login">
+              <div class="profile-tabs" role="tablist" aria-label="Kies login of registratie">
+                <button type="button" class="profile-tab is-active" data-auth-mode="login">Inloggen</button>
+                <button type="button" class="profile-tab" data-auth-mode="register">Registreren</button>
+              </div>
+              <label data-auth-visible="login">
+                <span>E-mailadres of gebruikersnaam</span>
+                <input type="text" id="authIdentifier" placeholder="naam@student.hogent.be of bijnaam" autocomplete="username" />
+              </label>
+              <label data-auth-visible="register">
+                <span>Gebruikersnaam</span>
+                <input type="text" id="authUsername" placeholder="Kies een bijnaam" minlength="2" autocomplete="nickname" />
+              </label>
+              <label data-auth-visible="register">
+                <span>E-mailadres</span>
+                <input type="email" id="authEmail" placeholder="naam@student.hogent.be" autocomplete="email" />
+              </label>
+              <label>
+                <span>Wachtwoord</span>
+                <input type="password" id="authPassword" placeholder="Min. 4 tekens" minlength="4" autocomplete="new-password" />
+              </label>
+              <p class="profile-hint" data-auth-visible="register">
+                Na registratie sturen we een bevestigingsmail naar je inbox zodat je account actief blijft.
+              </p>
+              <button type="submit" class="btn primary" id="authSubmit">Inloggen</button>
+            </form>
+            <div class="profile-divider">
+              <span>of</span>
+            </div>
+            <button class="btn google" id="googleLogin">Ga verder met Google</button>
+            <p class="profile-hint">Tip: registreer eenmaal met e-mail of Google en log daarna in met je gebruikersnaam.</p>
+            <p class="profile-feedback" id="authFeedback" role="status"></p>
+          </div>
+
+          <div class="profile-dropdown__section profile-dropdown__section--hidden" id="profileLoggedIn">
+            <div class="profile-user">
+              <div class="profile-toggle__avatar profile-toggle__avatar--large" id="profileAvatarLarge" aria-hidden="true">A</div>
+              <div>
+                <p class="hero__eyebrow">Ingelogd</p>
+                <h3 id="profileDisplayName">student</h3>
+                <p id="profileContact" class="profile-contact">student@hogent.be</p>
+                <p id="profileProvider">Aangemeld via wachtwoord</p>
+                <p id="profileVerification" class="profile-hint"></p>
+              </div>
+            </div>
+            <div class="profile-actions">
+              <button class="btn outline" id="logoutBtn">Uitloggen</button>
+            </div>
+            <section class="profile-history">
+              <header>
+                <p class="hero__eyebrow">Quizgeschiedenis</p>
+                <h4>Verbeter je resultaten</h4>
+              </header>
+              <ul id="historyList" class="profile-history__list"></ul>
+              <p id="historyEmpty" class="profile-hint">Speel een quiz en we bewaren je punten per bot.</p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </header>
+
     <div class="screen screen--start is-visible" data-screen="start" id="startScreen">
       <header class="hero">
         <div class="hero__content">
           <p class="hero__eyebrow">Welkom in de Anatomie Arena</p>
           <h1>
-            ✅ Anatomie Quiz Hub
+            Anatomie Quiz Hub
             <span>Nieuwe 20-vragen quizzen worden bot per bot toegevoegd</span>
           </h1>
           <p>
@@ -72,7 +150,7 @@
             </p>
           </div>
           <div class="catalog-header__actions">
-            <button class="btn ghost" id="goToLanding">← Terug naar start</button>
+            <button class="btn ghost" id="goToLanding">Terug naar start</button>
           </div>
         </header>
 
@@ -93,8 +171,8 @@
             <section id="quizPlayground" class="panel panel--hidden">
               <div class="quiz-head">
                 <div class="quiz-head__controls">
-                  <button class="btn ghost" id="backToMenu">← Terug naar hoofdmenu</button>
-                  <button class="btn outline" id="openFullScreen">↗ Volledig tabblad</button>
+                  <button class="btn ghost" id="backToMenu">Terug naar hoofdmenu</button>
+                  <button class="btn outline" id="openFullScreen">Groter scherm</button>
                 </div>
                 <div class="quiz-head__info">
                   <p id="quizLevel"></p>
@@ -116,25 +194,45 @@
               </div>
             </section>
 
-            <section id="resultPanel" class="panel panel--hidden">
-              <div class="result-card">
-                <p class="result-card__eyebrow">Quiz voltooid</p>
-                <h3 id="resultTitle"></h3>
-                <p id="resultScore"></p>
-                <div id="resultDetails" class="result-details"></div>
-                <div class="result-actions">
-                  <button class="btn ghost" id="retryQuiz">Probeer opnieuw</button>
-                  <button class="btn primary" id="returnHome">Terug naar menu</button>
-                </div>
-              </div>
-            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="screen screen--results" data-screen="results" id="resultsScreen">
+      <main class="results">
+        <header class="results__header">
+          <div>
+            <p class="hero__eyebrow">Quizresultaat</p>
+            <h2>Overzicht van je vooruitgang</h2>
+            <p>
+              Bekijk hier je score, ontdek welke vragen juist waren en navigeer vervolgens
+              terug naar het menu of het startscherm zonder de pagina te verlaten.
+            </p>
+          </div>
+          <div class="results__actions">
+            <button class="btn ghost" id="resultsBackToCatalog">Terug naar hoofdmenu</button>
+            <button class="btn outline" id="resultsGoHome">Naar startscherm</button>
+          </div>
+        </header>
+
+        <section id="resultPanel" class="panel panel--results">
+          <div class="result-card">
+            <p class="result-card__eyebrow">Quiz voltooid</p>
+            <h3 id="resultTitle"></h3>
+            <p id="resultScore"></p>
+            <div id="resultCelebration"></div>
+            <div id="resultDetails" class="result-details"></div>
+            <div class="result-actions">
+              <button class="btn primary" id="resultsRetry">Speel deze quiz opnieuw</button>
+            </div>
           </div>
         </section>
       </main>
     </div>
 
     <footer>
-      <p>Gemaakt met ❤️ voor anatomie – powered by GPT-5 Codex</p>
+      <p>Gemaakt met toewijding voor anatomie – powered by GPT-5 Codex</p>
     </footer>
 
     <script src="app.js" defer></script>
