@@ -3,9 +3,129 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2428175182032589"
-     crossorigin="anonymous"></script>
-    <title>Anatomie Masterclass</title>
+   <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    onAuthStateChanged,
+    signOut,
+  } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDpSxT_J3MudDULicKGlspzQf3SueXoDOA",
+    authDomain: "anatomiebyroenie.firebaseapp.com",
+    projectId: "anatomiebyroenie",
+    storageBucket: "anatomiebyroenie.firebasestorage.app",
+    messagingSenderId: "792629070812",
+    appId: "1:792629070812:web:fa0632909c3f76e2ca5d19",
+    measurementId: "G-6JEHJQMWTT"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // Optioneel beschikbaar maken voor app.js
+  window.firebaseAuth = auth;
+  window.firebaseProvider = provider;
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const googleBtn           = document.getElementById("googleLogin");
+    const feedbackEl          = document.getElementById("authFeedback");
+
+    const profileLoggedOut    = document.getElementById("profileLoggedOut");
+    const profileLoggedIn     = document.getElementById("profileLoggedIn");
+    const profileDisplayName  = document.getElementById("profileDisplayName");
+    const profileContact      = document.getElementById("profileContact");
+    const profileProviderEl   = document.getElementById("profileProvider");
+    const profileVerification = document.getElementById("profileVerification");
+
+    const profileAvatar       = document.getElementById("profileAvatar");
+    const profileAvatarLarge  = document.getElementById("profileAvatarLarge");
+    const profileToggleLabel  = document.getElementById("profileToggleLabel");
+    const logoutBtn           = document.getElementById("logoutBtn");
+
+    function setAvatar(letter) {
+      const l = (letter || "A").toUpperCase();
+      if (profileAvatar) profileAvatar.textContent = l;
+      if (profileAvatarLarge) profileAvatarLarge.textContent = l;
+    }
+
+    function showLoggedIn(user, providerText) {
+      if (!user) return;
+
+      const name  = user.displayName || (user.email ? user.email.split("@")[0] : "student");
+      const email = user.email || "";
+
+      if (profileDisplayName)  profileDisplayName.textContent  = name;
+      if (profileContact)      profileContact.textContent      = email;
+      if (profileProviderEl)   profileProviderEl.textContent   = providerText;
+      if (profileVerification) profileVerification.textContent = "";
+
+      if (profileToggleLabel) profileToggleLabel.textContent = "Jouw profiel";
+      setAvatar(name[0]);
+
+      if (profileLoggedOut) profileLoggedOut.classList.add("profile-dropdown__section--hidden");
+      if (profileLoggedIn)  profileLoggedIn.classList.remove("profile-dropdown__section--hidden");
+
+      // optioneel: lokaal bewaren
+      localStorage.setItem("anatomie-profiel-email", email);
+    }
+
+    function showLoggedOut() {
+      if (profileLoggedOut) profileLoggedOut.classList.remove("profile-dropdown__section--hidden");
+      if (profileLoggedIn)  profileLoggedIn.classList.add("profile-dropdown__section--hidden");
+      if (profileToggleLabel) profileToggleLabel.textContent = "Jouw profiel";
+      setAvatar("A");
+    }
+
+    // 👉 Google login
+    if (googleBtn) {
+      googleBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (feedbackEl) feedbackEl.textContent = "Google-login openen...";
+
+        try {
+          const result = await signInWithPopup(auth, provider);
+          const user = result.user;
+          if (feedbackEl) feedbackEl.textContent = `Ingelogd als ${user.email}`;
+          showLoggedIn(user, "Aangemeld via Google");
+        } catch (err) {
+          console.error("Google login fout:", err);
+          if (feedbackEl) feedbackEl.textContent = "Google-login is mislukt. Probeer opnieuw.";
+        }
+      });
+    }
+
+    // 👉 Uitloggen
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async () => {
+        try {
+          await signOut(auth);
+          localStorage.removeItem("anatomie-profiel-email");
+          showLoggedOut();
+          if (feedbackEl) feedbackEl.textContent = "Je bent uitgelogd.";
+        } catch (err) {
+          console.error("Uitloggen fout:", err);
+          if (feedbackEl) feedbackEl.textContent = "Uitloggen mislukt.";
+        }
+      });
+    }
+
+    // 👉 Loginstatus volgen
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        showLoggedIn(user, "Aangemeld via Google");
+      } else {
+        showLoggedOut();
+      }
+    });
+  });
+</script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="icon" type="image/png" href="anatomie.png" />
