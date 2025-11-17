@@ -2512,6 +2512,8 @@ const quizData = [
 const quizGrid = document.getElementById("quizGrid");
 const quizPlayground = document.getElementById("quizPlayground");
 const quizMenu = document.getElementById("quizMenu");
+const catalogGrid = document.querySelector(".catalog-grid");
+const workspacePlay = document.querySelector(".workspace__play");
 const questionZone = document.getElementById("questionZone");
 const progressCounter = document.getElementById("progressCounter");
 const progressBar = document.getElementById("progressBar");
@@ -2691,8 +2693,15 @@ function startQuiz(id) {
 }
 
 function togglePanels(view) {
-  quizMenu.classList.toggle("panel--hidden", view !== "menu");
-  quizPlayground.classList.toggle("panel--hidden", view !== "quiz");
+  const isMenuView = view === "menu";
+  quizMenu.classList.toggle("panel--hidden", !isMenuView);
+  quizPlayground.classList.toggle("panel--hidden", isMenuView);
+  if (catalogGrid) {
+    catalogGrid.classList.toggle("catalog-grid--menu-only", isMenuView);
+  }
+  if (workspacePlay) {
+    workspacePlay.classList.toggle("workspace__play--hidden", isMenuView);
+  }
 }
 
 function renderQuestion() {
@@ -2892,6 +2901,7 @@ updateFullScreenButtonLabel();
 showScreen("start");
 
 renderMenu();
+togglePanels("menu");
 
 const urlParams = new URLSearchParams(window.location.search);
 const initialQuizId = urlParams.get("quiz");
