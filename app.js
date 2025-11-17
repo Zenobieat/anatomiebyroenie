@@ -2512,7 +2512,8 @@ const quizData = [
 const quizGrid = document.getElementById("quizGrid");
 const quizPlayground = document.getElementById("quizPlayground");
 const quizMenu = document.getElementById("quizMenu");
-const resultPanel = document.getElementById("resultPanel");
+const catalogGrid = document.querySelector(".catalog-grid");
+const workspacePlay = document.querySelector(".workspace__play");
 const questionZone = document.getElementById("questionZone");
 const progressCounter = document.getElementById("progressCounter");
 const progressBar = document.getElementById("progressBar");
@@ -2523,10 +2524,35 @@ const quizLevel = document.getElementById("quizLevel");
 const resultTitle = document.getElementById("resultTitle");
 const resultScore = document.getElementById("resultScore");
 const resultDetails = document.getElementById("resultDetails");
+const resultCelebration = document.getElementById("resultCelebration");
 const screens = document.querySelectorAll("[data-screen]");
 const catalogScreen = document.getElementById("catalogScreen");
 const openFullScreenBtn = document.getElementById("openFullScreen");
 const bodyEl = document.body;
+const profileToggle = document.getElementById("profileToggle");
+const profileDropdown = document.getElementById("profileDropdown");
+const profileToggleLabel = document.getElementById("profileToggleLabel");
+const profileAvatar = document.getElementById("profileAvatar");
+const profileAvatarLarge = document.getElementById("profileAvatarLarge");
+const profileLoggedOut = document.getElementById("profileLoggedOut");
+const profileLoggedIn = document.getElementById("profileLoggedIn");
+const authForm = document.getElementById("authForm");
+const authModeButtons = document.querySelectorAll("[data-auth-mode]");
+const authPanels = document.querySelectorAll("[data-auth-panel]");
+const authIdentifierInput = document.getElementById("authIdentifier");
+const authUsernameInput = document.getElementById("authUsername");
+const authEmailInput = document.getElementById("authEmail");
+const authPasswordInput = document.getElementById("authPassword");
+const authSubmitButton = document.getElementById("authSubmit");
+const authFeedback = document.getElementById("authFeedback");
+const googleLoginBtn = document.getElementById("googleLogin");
+const logoutBtn = document.getElementById("logoutBtn");
+const profileDisplayNameEl = document.getElementById("profileDisplayName");
+const profileContactEl = document.getElementById("profileContact");
+const profileProviderEl = document.getElementById("profileProvider");
+const profileVerificationEl = document.getElementById("profileVerification");
+const historyList = document.getElementById("historyList");
+const historyEmpty = document.getElementById("historyEmpty");
 
 const menuSections = [
   {
@@ -2554,18 +2580,478 @@ const state = {
   answers: []
 };
 
+let currentAuthMode = "login";
+
+const storageKeys = {
+  accounts: "anatomie_accounts",
+  currentUser: "anatomie_current_user"
+};
+
+const accountState = {
+  accounts: loadStoredAccounts(),
+  currentUser: loadStoredCurrentUser()
+};
+
 const letters = ["A", "B", "C", "D"];
 const questionAnimationClass = "question-zone--animate";
+
+function normalizeEmail(value = "") {
+  return value.trim().toLowerCase();
+}
+
+function sanitizeUsername(value = "") {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function loadStoredAccounts() {
+  if (typeof window === "undefined" || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(storageKeys.accounts);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return normalizeAccounts(parsed);
+  } catch (error) {
+    console.warn("Kan accounts niet laden", error);
+    return {};
+  }
+}
+
+function normalizeAccounts(source = {}) {
+  return Object.keys(source).reduce((acc, key) => {
+    const account = source[key];
+    if (!account || typeof account !== "object") return acc;
+    const normalizedEmail = (account.email || key || "").toLowerCase();
+    if (!normalizedEmail) return acc;
+    const username = sanitizeUsername(account.username || normalizedEmail.split("@")[0] || "student");
+    acc[normalizedEmail] = {
+      ...account,
+      email: normalizedEmail,
+      username,
+      usernameLower: username.toLowerCase(),
+      methods: {
+        password: Boolean(account.methods?.password || account.password),
+        google: Boolean(account.methods?.google)
+      },
+      history: Array.isArray(account.history) ? account.history : [],
+      lastLoginProvider: account.lastLoginProvider || (account.methods?.google ? "google" : "password"),
+      verificationSentAt: account.verificationSentAt || account.createdAt || new Date().toISOString()
+    };
+    return acc;
+  }, {});
+}
+
+function saveStoredAccounts(accounts) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(storageKeys.accounts, JSON.stringify(accounts));
+}
+
+function loadStoredCurrentUser() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  const stored = window.localStorage.getItem(storageKeys.currentUser);
+  return stored ? stored.toLowerCase() : null;
+}
+
+function persistCurrentUser(email) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  if (email) {
+    window.localStorage.setItem(storageKeys.currentUser, email.toLowerCase());
+  } else {
+    window.localStorage.removeItem(storageKeys.currentUser);
+  }
+}
+
+function setCurrentUser(email) {
+  const normalized = email ? email.toLowerCase() : null;
+  accountState.currentUser = normalized;
+  persistCurrentUser(normalized);
+}
+
+function getCurrentAccount() {
+  if (!accountState.currentUser) return null;
+  return accountState.accounts[accountState.currentUser] || null;
+}
+
+function createAccount({ email, username = "", password = "", method = "password" } = {}) {
+  const normalizedEmail = normalizeEmail(email);
+  const safeUsername = sanitizeUsername(username || normalizedEmail.split("@")[0] || "student");
+  return {
+    email: normalizedEmail,
+    username: safeUsername,
+    usernameLower: safeUsername.toLowerCase(),
+    password,
+    methods: {
+      password: method === "password",
+      google: method === "google"
+    },
+    history: [],
+    createdAt: new Date().toISOString(),
+    verificationSentAt: new Date().toISOString(),
+    lastLoginProvider: method
+  };
+}
+
+function isUsernameTaken(username, ignoreEmail) {
+  if (!username) return false;
+  const target = username.toLowerCase();
+  return Object.entries(accountState.accounts).some(([email, account]) => {
+    if (ignoreEmail && email === ignoreEmail) return false;
+    return account.usernameLower === target;
+  });
+}
+
+function findAccountByIdentifier(identifier) {
+  if (!identifier) return null;
+  const normalized = identifier.trim().toLowerCase();
+  if (accountState.accounts[normalized]) {
+    return accountState.accounts[normalized];
+  }
+  const match = Object.values(accountState.accounts).find((account) => account.usernameLower === normalized);
+  return match || null;
+}
+
+function setAuthFeedback(message = "", variant = "success") {
+  if (!authFeedback) return;
+  authFeedback.textContent = message;
+  authFeedback.classList.remove("profile-feedback--error", "profile-feedback--success");
+  if (!message) return;
+  authFeedback.classList.add(variant === "error" ? "profile-feedback--error" : "profile-feedback--success");
+}
+
+function setAuthMode(mode = "login") {
+  currentAuthMode = mode === "register" ? "register" : "login";
+  if (authForm) {
+    authForm.dataset.mode = currentAuthMode;
+  }
+  if (authModeButtons.length) {
+    authModeButtons.forEach((button) => {
+      const isActiveTab = button.dataset.authMode === currentAuthMode;
+      button.classList.toggle("is-active", isActiveTab);
+      button.setAttribute("aria-selected", isActiveTab ? "true" : "false");
+      button.tabIndex = isActiveTab ? 0 : -1;
+    });
+  }
+  if (authPanels.length) {
+    authPanels.forEach((panel) => {
+      const isActivePanel = panel.dataset.authPanel === currentAuthMode;
+      panel.hidden = !isActivePanel;
+      panel.classList.toggle("is-active", isActivePanel);
+    });
+  }
+  if (authSubmitButton) {
+    authSubmitButton.textContent = currentAuthMode === "register" ? "Registreren" : "Inloggen";
+  }
+  if (authIdentifierInput) {
+    authIdentifierInput.required = currentAuthMode === "login";
+  }
+  if (authEmailInput) {
+    authEmailInput.required = currentAuthMode === "register";
+  }
+  if (authUsernameInput) {
+    authUsernameInput.required = currentAuthMode === "register";
+  }
+  if (authPasswordInput) {
+    const autocompleteValue = currentAuthMode === "login" ? "current-password" : "new-password";
+    authPasswordInput.setAttribute("autocomplete", autocompleteValue);
+  }
+  setAuthFeedback("");
+}
+
+function getAuthMode() {
+  return currentAuthMode;
+}
+
+function updateProfileUI() {
+  if (accountState.currentUser && !accountState.accounts[accountState.currentUser]) {
+    setCurrentUser(null);
+  }
+  const account = getCurrentAccount();
+  const isLoggedIn = Boolean(account);
+  if (profileLoggedOut && profileLoggedIn) {
+    profileLoggedOut.classList.toggle("profile-dropdown__section--hidden", isLoggedIn);
+    profileLoggedIn.classList.toggle("profile-dropdown__section--hidden", !isLoggedIn);
+  }
+
+  const fallbackLabel = "Jouw profiel";
+  const displayLabel = isLoggedIn ? account.username || account.email : fallbackLabel;
+  if (profileToggleLabel) {
+    profileToggleLabel.textContent = displayLabel;
+  }
+  const avatarSource = isLoggedIn ? displayLabel : "A";
+  const avatarLetter = avatarSource.charAt(0).toUpperCase();
+  if (profileAvatar) {
+    profileAvatar.textContent = avatarLetter;
+  }
+  if (profileAvatarLarge) {
+    profileAvatarLarge.textContent = avatarLetter;
+  }
+  if (isLoggedIn) {
+    if (profileDisplayNameEl) {
+      profileDisplayNameEl.textContent = displayLabel;
+    }
+    if (profileContactEl) {
+      profileContactEl.textContent = account.email;
+    }
+    if (profileProviderEl) {
+      const providerLabel = account.lastLoginProvider === "google" ? "Ingelogd via Google" : "Ingelogd met wachtwoord";
+      profileProviderEl.textContent = providerLabel;
+    }
+    if (profileVerificationEl) {
+      const sentAt = account.verificationSentAt ? new Date(account.verificationSentAt) : null;
+      profileVerificationEl.textContent = sentAt
+        ? `Laatste bevestiging: ${sentAt.toLocaleDateString("nl-BE", { day: "2-digit", month: "short" })}`
+        : "";
+    }
+  }
+  if (!isLoggedIn && historyList) {
+    historyList.innerHTML = "";
+  }
+  if (!isLoggedIn && historyEmpty) {
+    historyEmpty.hidden = false;
+  }
+  if (!isLoggedIn && profileVerificationEl) {
+    profileVerificationEl.textContent = "";
+  }
+  if (isLoggedIn) {
+    renderHistory(account.history || []);
+  }
+}
+
+function toggleProfileDropdown(forceOpen) {
+  if (!profileDropdown || !profileToggle) return;
+  const willOpen = typeof forceOpen === "boolean" ? forceOpen : !profileDropdown.classList.contains("is-open");
+  profileDropdown.classList.toggle("is-open", willOpen);
+  profileToggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+}
+
+function closeProfileDropdown() {
+  toggleProfileDropdown(false);
+}
+
+function handleCredentialLogin(event) {
+  event.preventDefault();
+  if (!authPasswordInput) return;
+  const mode = getAuthMode();
+  const password = authPasswordInput.value.trim();
+  if (password.length < 4) {
+    setAuthFeedback("Gebruik minstens 4 tekens voor je wachtwoord.", "error");
+    return;
+  }
+
+  if (mode === "login") {
+    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
+    if (!identifier) {
+      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in.", "error");
+      return;
+    }
+    const account = findAccountByIdentifier(identifier);
+    if (!account) {
+      setAuthFeedback("We vinden geen account met deze gegevens.", "error");
+      return;
+    }
+    if (!account.methods.password) {
+      setAuthFeedback("Log voor dit account in via Google.", "error");
+      return;
+    }
+    if (!account.password || account.password !== password) {
+      setAuthFeedback("Het wachtwoord klopt niet.", "error");
+      return;
+    }
+    account.lastLoginProvider = "password";
+    accountState.accounts[account.email] = account;
+    saveStoredAccounts(accountState.accounts);
+    setCurrentUser(account.email);
+    updateProfileUI();
+    setAuthFeedback(`Welkom terug, ${account.username}!`);
+    if (authForm) {
+      authForm.reset();
+    }
+    return;
+  }
+
+  const usernameValue = authUsernameInput ? sanitizeUsername(authUsernameInput.value) : "";
+  const emailValue = authEmailInput ? normalizeEmail(authEmailInput.value || "") : "";
+  if (!usernameValue || usernameValue.length < 2) {
+    setAuthFeedback("Kies een gebruikersnaam van minstens 2 tekens.", "error");
+    return;
+  }
+  if (!emailValue) {
+    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
+    return;
+  }
+  if (accountState.accounts[emailValue]) {
+    setAuthFeedback("Er bestaat al een account met dit e-mailadres.", "error");
+    return;
+  }
+  if (isUsernameTaken(usernameValue)) {
+    setAuthFeedback("Deze gebruikersnaam is al in gebruik.", "error");
+    return;
+  }
+
+  const accounts = { ...accountState.accounts };
+  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password, method: "password" });
+  accountState.accounts = accounts;
+  saveStoredAccounts(accounts);
+  setCurrentUser(emailValue);
+  updateProfileUI();
+  setAuthFeedback(`Account aangemaakt. We stuurden een bevestiging naar ${emailValue}.`);
+  if (authForm) {
+    authForm.reset();
+  }
+  setAuthMode("login");
+}
+
+function handleGoogleLogin() {
+  const mode = getAuthMode();
+  if (mode === "login") {
+    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
+    if (!identifier) {
+      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in om verder te gaan.", "error");
+      return;
+    }
+    const account = findAccountByIdentifier(identifier);
+    if (!account) {
+      setAuthFeedback("Geen account gevonden voor deze gegevens.", "error");
+      return;
+    }
+    account.methods = {
+      password: Boolean(account.methods?.password),
+      google: true
+    };
+    account.lastLoginProvider = "google";
+    accountState.accounts[account.email] = account;
+    saveStoredAccounts(accountState.accounts);
+    setCurrentUser(account.email);
+    updateProfileUI();
+    setAuthFeedback(`Ingelogd via Google als ${account.username}.`);
+    if (authForm) {
+      authForm.reset();
+    }
+    return;
+  }
+
+  if (!authEmailInput || !authUsernameInput) return;
+  const usernameValue = sanitizeUsername(authUsernameInput.value);
+  const emailValue = normalizeEmail(authEmailInput.value || "");
+  if (!usernameValue || usernameValue.length < 2) {
+    setAuthFeedback("Vul eerst je gewenste gebruikersnaam in.", "error");
+    return;
+  }
+  if (!emailValue) {
+    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
+    return;
+  }
+  if (accountState.accounts[emailValue]) {
+    setAuthFeedback("Dit e-mailadres is al gekoppeld aan een account.", "error");
+    return;
+  }
+  if (isUsernameTaken(usernameValue)) {
+    setAuthFeedback("Deze gebruikersnaam is al bezet.", "error");
+    return;
+  }
+  const accounts = { ...accountState.accounts };
+  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password: "", method: "google" });
+  accountState.accounts = accounts;
+  saveStoredAccounts(accounts);
+  setCurrentUser(emailValue);
+  updateProfileUI();
+  setAuthFeedback(`Account aangemaakt via Google. Controleer ${emailValue} voor onze bevestigingsmail.`);
+  if (authForm) {
+    authForm.reset();
+  }
+  setAuthMode("login");
+}
+
+function handleLogout() {
+  setCurrentUser(null);
+  updateProfileUI();
+  setAuthFeedback("Je bent uitgelogd.");
+  closeProfileDropdown();
+}
+
+function renderHistory(entries) {
+  if (!historyList || !historyEmpty) return;
+  if (!entries || !entries.length) {
+    historyList.innerHTML = "";
+    historyEmpty.hidden = false;
+    return;
+  }
+  historyEmpty.hidden = true;
+  const sorted = [...entries].sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed));
+  historyList.innerHTML = sorted
+    .map((entry) => {
+      const date = new Date(entry.lastPlayed);
+      const formatted = date.toLocaleDateString("nl-BE", {
+        day: "2-digit",
+        month: "short"
+      });
+      return `
+        <li>
+          <div>
+            <strong>${entry.quizTitle}</strong>
+            <small>Laatste: ${entry.lastScore} / ${entry.total} • Beste: ${entry.bestScore} / ${entry.total} • ${entry.attempts} pogingen • ${formatted}</small>
+          </div>
+          <button class="btn ghost" data-quiz-id="${entry.quizId}">Verbeter</button>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions) {
+  const account = getCurrentAccount();
+  if (!account) return;
+  const updatedAccount = { ...account };
+  const history = Array.isArray(updatedAccount.history) ? [...updatedAccount.history] : [];
+  const timestamp = new Date().toISOString();
+  const entryIndex = history.findIndex((entry) => entry.quizId === quiz.id);
+  if (entryIndex > -1) {
+    const existingEntry = { ...history[entryIndex] };
+    existingEntry.attempts = (existingEntry.attempts || 0) + 1;
+    existingEntry.lastScore = correctAnswers;
+    existingEntry.total = totalQuestions;
+    existingEntry.bestScore = Math.max(existingEntry.bestScore || 0, correctAnswers);
+    existingEntry.lastPlayed = timestamp;
+    history[entryIndex] = existingEntry;
+  } else {
+    history.push({
+      quizId: quiz.id,
+      quizTitle: quiz.title,
+      attempts: 1,
+      lastScore: correctAnswers,
+      bestScore: correctAnswers,
+      total: totalQuestions,
+      lastPlayed: timestamp
+    });
+  }
+  updatedAccount.history = history;
+  accountState.accounts[updatedAccount.email] = updatedAccount;
+  saveStoredAccounts(accountState.accounts);
+  updateProfileUI();
+}
 
 function setFullScreenMode(isEnabled, { resetUrl = false } = {}) {
   if (!bodyEl) return;
   bodyEl.classList.toggle("is-fullscreen-player", Boolean(isEnabled));
-  if (resetUrl && !isEnabled) {
-    const url = new URL(window.location.href);
+  updateFullScreenButtonLabel();
+
+  const url = new URL(window.location.href);
+  if (isEnabled) {
+    if (state.currentQuiz) {
+      url.searchParams.set("quiz", state.currentQuiz.id);
+    }
+    url.searchParams.set("view", "fullscreen");
+  } else {
     url.searchParams.delete("view");
-    url.searchParams.delete("quiz");
-    window.history.replaceState({}, "", url);
+    if (resetUrl) {
+      url.searchParams.delete("quiz");
+    }
   }
+  window.history.replaceState({}, "", url);
+}
+
+function updateFullScreenButtonLabel() {
+  if (!openFullScreenBtn) return;
+  const isFullScreen = bodyEl.classList.contains("is-fullscreen-player");
+  openFullScreenBtn.textContent = isFullScreen ? "Normale weergave" : "Groter scherm";
 }
 
 function shortQuizLabel(quiz) {
@@ -2676,9 +3162,15 @@ function startQuiz(id) {
 }
 
 function togglePanels(view) {
-  quizMenu.classList.toggle("panel--hidden", view !== "menu");
-  quizPlayground.classList.toggle("panel--hidden", view !== "quiz");
-  resultPanel.classList.toggle("panel--hidden", view !== "result");
+  const isMenuView = view === "menu";
+  quizMenu.classList.toggle("panel--hidden", !isMenuView);
+  quizPlayground.classList.toggle("panel--hidden", isMenuView);
+  if (catalogGrid) {
+    catalogGrid.classList.toggle("catalog-grid--menu-only", isMenuView);
+  }
+  if (workspacePlay) {
+    workspacePlay.classList.toggle("workspace__play--hidden", isMenuView);
+  }
 }
 
 function renderQuestion() {
@@ -2764,6 +3256,15 @@ function showResults() {
   resultTitle.textContent = quiz.title;
   resultScore.innerHTML = `<span class="result-score">${scoreOn20.toFixed(1)} / 20</span><br>${correctAnswers} van ${quiz.questions.length} juist`;
 
+  const hasHighScore = scoreOn20 >= 15;
+  if (resultCelebration) {
+    resultCelebration.innerHTML = hasHighScore
+      ? '<p class="result-card__celebration">🎊 Fantastische score – je beheerst dit onderwerp!</p>'
+      : "";
+  }
+
+  saveResultForCurrentUser(quiz, correctAnswers, quiz.questions.length);
+
   const detailsMarkup = quiz.questions
     .map((question, idx) => {
       const selected = state.answers[idx];
@@ -2778,7 +3279,7 @@ function showResults() {
           }</p>
           ${
             isCorrect
-              ? "<p>✅ Helemaal goed!</p>"
+              ? '<p class="result-detail__note">Correct beantwoord</p>'
               : `<p>Correct: ${letters[question.answer]} – ${question.options[question.answer]}</p>`
           }
         </div>
@@ -2788,12 +3289,13 @@ function showResults() {
 
   resultDetails.innerHTML = detailsMarkup;
   progressBar.style.width = "100%";
-  togglePanels("result");
+  showScreen("results");
 }
 
 const backToMenu = document.getElementById("backToMenu");
-const retryQuiz = document.getElementById("retryQuiz");
-const returnHome = document.getElementById("returnHome");
+const resultsRetry = document.getElementById("resultsRetry");
+const resultsBackToCatalog = document.getElementById("resultsBackToCatalog");
+const resultsGoHome = document.getElementById("resultsGoHome");
 const scrollToQuizzes = document.getElementById("scrollToQuizzes");
 const goToLanding = document.getElementById("goToLanding");
 
@@ -2818,17 +3320,31 @@ backToMenu.addEventListener("click", () => {
   setFullScreenMode(false, { resetUrl: true });
 });
 
-retryQuiz.addEventListener("click", () => {
-  if (!state.currentQuiz) return;
-  startQuiz(state.currentQuiz.id);
-});
+if (resultsRetry) {
+  resultsRetry.addEventListener("click", () => {
+    if (!state.currentQuiz) return;
+    showScreen("catalog");
+    startQuiz(state.currentQuiz.id);
+  });
+}
 
-returnHome.addEventListener("click", () => {
-  state.currentQuiz = null;
-  togglePanels("menu");
-  showScreen("catalog");
-  setFullScreenMode(false, { resetUrl: true });
-});
+if (resultsBackToCatalog) {
+  resultsBackToCatalog.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
+    showScreen("catalog");
+    setFullScreenMode(false, { resetUrl: true });
+  });
+}
+
+if (resultsGoHome) {
+  resultsGoHome.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
+    showScreen("start");
+    setFullScreenMode(false, { resetUrl: true });
+  });
+}
 
 if (scrollToQuizzes) {
   scrollToQuizzes.addEventListener("click", openCatalogView);
@@ -2837,26 +3353,87 @@ if (scrollToQuizzes) {
 if (openFullScreenBtn) {
   openFullScreenBtn.addEventListener("click", () => {
     if (!state.currentQuiz) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("quiz", state.currentQuiz.id);
-    url.searchParams.set("view", "fullscreen");
-    const newTab = window.open(url.toString(), "_blank");
-    if (newTab) {
-      newTab.opener = null;
-    }
+    const isFullScreen = bodyEl.classList.contains("is-fullscreen-player");
+    setFullScreenMode(!isFullScreen);
   });
 }
 
 if (goToLanding) {
   goToLanding.addEventListener("click", () => {
+    state.currentQuiz = null;
+    togglePanels("menu");
     showScreen("start");
     setFullScreenMode(false, { resetUrl: true });
   });
 }
 
+if (profileToggle) {
+  profileToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleProfileDropdown();
+  });
+}
+
+if (profileDropdown) {
+  profileDropdown.addEventListener("click", (event) => event.stopPropagation());
+}
+
+document.addEventListener("click", (event) => {
+  if (!profileDropdown || !profileToggle) return;
+  if (profileDropdown.contains(event.target) || profileToggle.contains(event.target)) return;
+  closeProfileDropdown();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeProfileDropdown();
+  }
+});
+
+if (authModeButtons.length) {
+  authModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setAuthMode(button.dataset.authMode);
+    });
+  });
+}
+
+if (authForm) {
+  authForm.addEventListener("submit", handleCredentialLogin);
+}
+
+if (googleLoginBtn) {
+  googleLoginBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleGoogleLogin();
+  });
+}
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", handleLogout);
+}
+
+if (historyList) {
+  historyList.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-quiz-id]");
+    if (!button) return;
+    const quizId = button.dataset.quizId;
+    closeProfileDropdown();
+    openCatalogView();
+    startQuiz(quizId);
+  });
+}
+
+setAuthMode("login");
+
+updateProfileUI();
+
+updateFullScreenButtonLabel();
+
 showScreen("start");
 
 renderMenu();
+togglePanels("menu");
 
 const urlParams = new URLSearchParams(window.location.search);
 const initialQuizId = urlParams.get("quiz");
