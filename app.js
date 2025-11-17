@@ -2537,13 +2537,20 @@ const profileAvatarLarge = document.getElementById("profileAvatarLarge");
 const profileLoggedOut = document.getElementById("profileLoggedOut");
 const profileLoggedIn = document.getElementById("profileLoggedIn");
 const authForm = document.getElementById("authForm");
+const authModeButtons = document.querySelectorAll("[data-auth-mode]");
+const authPanels = document.querySelectorAll("[data-auth-panel]");
+const authIdentifierInput = document.getElementById("authIdentifier");
+const authUsernameInput = document.getElementById("authUsername");
 const authEmailInput = document.getElementById("authEmail");
 const authPasswordInput = document.getElementById("authPassword");
+const authSubmitButton = document.getElementById("authSubmit");
 const authFeedback = document.getElementById("authFeedback");
 const googleLoginBtn = document.getElementById("googleLogin");
 const logoutBtn = document.getElementById("logoutBtn");
-const profileEmailEl = document.getElementById("profileEmail");
+const profileDisplayNameEl = document.getElementById("profileDisplayName");
+const profileContactEl = document.getElementById("profileContact");
 const profileProviderEl = document.getElementById("profileProvider");
+const profileVerificationEl = document.getElementById("profileVerification");
 const historyList = document.getElementById("historyList");
 const historyEmpty = document.getElementById("historyEmpty");
 
@@ -2716,7 +2723,17 @@ function setAuthMode(mode = "login") {
   }
   if (authModeButtons.length) {
     authModeButtons.forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.authMode === currentAuthMode);
+      const isActiveTab = button.dataset.authMode === currentAuthMode;
+      button.classList.toggle("is-active", isActiveTab);
+      button.setAttribute("aria-selected", isActiveTab ? "true" : "false");
+      button.tabIndex = isActiveTab ? 0 : -1;
+    });
+  }
+  if (authPanels.length) {
+    authPanels.forEach((panel) => {
+      const isActivePanel = panel.dataset.authPanel === currentAuthMode;
+      panel.hidden = !isActivePanel;
+      panel.classList.toggle("is-active", isActivePanel);
     });
   }
   if (authSubmitButton) {
@@ -2734,9 +2751,6 @@ function setAuthMode(mode = "login") {
   if (authPasswordInput) {
     const autocompleteValue = currentAuthMode === "login" ? "current-password" : "new-password";
     authPasswordInput.setAttribute("autocomplete", autocompleteValue);
-  }
-  if (currentAuthMode === "register" && authForm) {
-    authForm.querySelectorAll("[data-auth-visible='login'] input").forEach((input) => input.removeAttribute("required"));
   }
   setAuthFeedback("");
 }
@@ -2884,6 +2898,68 @@ function handleCredentialLogin(event) {
   }
   setAuthMode("login");
 }
+
+function handleGoogleLogin() {
+  const mode = getAuthMode();
+  if (mode === "login") {
+    const identifier = authIdentifierInput ? authIdentifierInput.value.trim() : "";
+    if (!identifier) {
+      setAuthFeedback("Vul je gebruikersnaam of e-mailadres in om verder te gaan.", "error");
+      return;
+    }
+    const account = findAccountByIdentifier(identifier);
+    if (!account) {
+      setAuthFeedback("Geen account gevonden voor deze gegevens.", "error");
+      return;
+    }
+    account.methods = {
+      password: Boolean(account.methods?.password),
+      google: true
+    };
+    account.lastLoginProvider = "google";
+    accountState.accounts[account.email] = account;
+    saveStoredAccounts(accountState.accounts);
+    setCurrentUser(account.email);
+    updateProfileUI();
+    setAuthFeedback(`Ingelogd via Google als ${account.username}.`);
+    if (authForm) {
+      authForm.reset();
+    }
+    return;
+  }
+
+  if (!authEmailInput || !authUsernameInput) return;
+  const usernameValue = sanitizeUsername(authUsernameInput.value);
+  const emailValue = normalizeEmail(authEmailInput.value || "");
+  if (!usernameValue || usernameValue.length < 2) {
+    setAuthFeedback("Vul eerst je gewenste gebruikersnaam in.", "error");
+    return;
+  }
+  if (!emailValue) {
+    setAuthFeedback("Vul een geldig e-mailadres in.", "error");
+    return;
+  }
+  if (accountState.accounts[emailValue]) {
+    setAuthFeedback("Dit e-mailadres is al gekoppeld aan een account.", "error");
+    return;
+  }
+  if (isUsernameTaken(usernameValue)) {
+    setAuthFeedback("Deze gebruikersnaam is al bezet.", "error");
+    return;
+  }
+  const accounts = { ...accountState.accounts };
+  accounts[emailValue] = createAccount({ email: emailValue, username: usernameValue, password: "", method: "google" });
+  accountState.accounts = accounts;
+  saveStoredAccounts(accounts);
+  setCurrentUser(emailValue);
+  updateProfileUI();
+  setAuthFeedback(`Account aangemaakt via Google. Controleer ${emailValue} voor onze bevestigingsmail.`);
+  if (authForm) {
+    authForm.reset();
+  }
+  setAuthMode("login");
+}
+
 function handleLogout() {
   setCurrentUser(null);
   updateProfileUI();
@@ -3325,6 +3401,14 @@ if (authModeButtons.length) {
 if (authForm) {
   authForm.addEventListener("submit", handleCredentialLogin);
 }
+
+if (googleLoginBtn) {
+  googleLoginBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleGoogleLogin();
+  });
+}
+
 if (logoutBtn) {
   logoutBtn.addEventListener("click", handleLogout);
 }

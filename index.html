@@ -152,28 +152,58 @@
             </p>
             <form id="authForm" class="profile-form" data-mode="login">
               <div class="profile-tabs" role="tablist" aria-label="Kies login of registratie">
-                <button type="button" class="profile-tab is-active" data-auth-mode="login">Inloggen</button>
-                <button type="button" class="profile-tab" data-auth-mode="register">Registreren</button>
+                <button
+                  type="button"
+                  class="profile-tab is-active"
+                  data-auth-mode="login"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="authPanelLogin"
+                >
+                  Inloggen
+                </button>
+                <button
+                  type="button"
+                  class="profile-tab"
+                  data-auth-mode="register"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="authPanelRegister"
+                >
+                  Registreren
+                </button>
               </div>
-              <label data-auth-visible="login">
-                <span>E-mailadres of gebruikersnaam</span>
-                <input type="text" id="authIdentifier" placeholder="naam@student.hogent.be of bijnaam" autocomplete="username" />
-              </label>
-              <label data-auth-visible="register">
-                <span>Gebruikersnaam</span>
-                <input type="text" id="authUsername" placeholder="Kies een bijnaam" minlength="2" autocomplete="nickname" />
-              </label>
-              <label data-auth-visible="register">
-                <span>E-mailadres</span>
-                <input type="email" id="authEmail" placeholder="naam@student.hogent.be" autocomplete="email" />
-              </label>
-              <label>
+
+              <div class="profile-panels">
+                <section class="profile-panel is-active" id="authPanelLogin" data-auth-panel="login">
+                  <p class="profile-panel__intro">Gebruik je gebruikersnaam of e-mailadres om opnieuw in te loggen.</p>
+                  <label>
+                    <span>E-mailadres of gebruikersnaam</span>
+                    <input type="text" id="authIdentifier" placeholder="naam@student.hogent.be of bijnaam" autocomplete="username" />
+                  </label>
+                </section>
+
+                <section class="profile-panel" id="authPanelRegister" data-auth-panel="register" hidden>
+                  <p class="profile-panel__intro">Maak een account aan, kies een duidelijke bijnaam en bevestig via e-mail.</p>
+                  <label>
+                    <span>Gebruikersnaam</span>
+                    <input type="text" id="authUsername" placeholder="Kies een bijnaam" minlength="2" autocomplete="nickname" />
+                  </label>
+                  <label>
+                    <span>E-mailadres</span>
+                    <input type="email" id="authEmail" placeholder="naam@student.hogent.be" autocomplete="email" />
+                  </label>
+                  <p class="profile-hint">
+                    Na registratie sturen we een bevestigingsmail naar je inbox zodat je account actief blijft.
+                  </p>
+                </section>
+              </div>
+
+              <label class="profile-password-field">
                 <span>Wachtwoord</span>
                 <input type="password" id="authPassword" placeholder="Min. 4 tekens" minlength="4" autocomplete="new-password" />
               </label>
-              <p class="profile-hint" data-auth-visible="register">
-                Na registratie sturen we een bevestigingsmail naar je inbox zodat je account actief blijft.
-              </p>
+
               <button type="submit" class="btn primary" id="authSubmit">Inloggen</button>
             </form>
             <div class="profile-divider">
