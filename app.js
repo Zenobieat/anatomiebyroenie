@@ -2523,6 +2523,7 @@ const quizTitle = document.getElementById("quizTitle");
 const quizLevel = document.getElementById("quizLevel");
 const resultTitle = document.getElementById("resultTitle");
 const resultScore = document.getElementById("resultScore");
+const resultMeta = document.getElementById("resultMeta");
 const resultDetails = document.getElementById("resultDetails");
 const resultCelebration = document.getElementById("resultCelebration");
 const screens = document.querySelectorAll("[data-screen]");
@@ -2577,7 +2578,10 @@ const state = {
   currentQuiz: null,
   currentIndex: 0,
   selectedOption: null,
-  answers: []
+  answers: [],
+  activeAttemptId: null,
+  activeAttemptPlayedAt: null,
+  activeAttemptCorrections: {}
 };
 
 let currentAuthMode = "login";
@@ -2586,6 +2590,8 @@ const storageKeys = {
   accounts: "anatomie_accounts",
   currentUser: "anatomie_current_user"
 };
+
+const MAX_STORED_ATTEMPTS = 25;
 
 const accountState = {
   accounts: loadStoredAccounts(),
@@ -2631,12 +2637,63 @@ function normalizeAccounts(source = {}) {
         password: Boolean(account.methods?.password || account.password),
         google: Boolean(account.methods?.google)
       },
-      history: Array.isArray(account.history) ? account.history : [],
+      history: normalizeHistoryEntries(account.history),
       lastLoginProvider: account.lastLoginProvider || (account.methods?.google ? "google" : "password"),
       verificationSentAt: account.verificationSentAt || account.createdAt || new Date().toISOString()
     };
     return acc;
   }, {});
+}
+
+function normalizeHistoryEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const attemptsLog = Array.isArray(entry.attemptsLog)
+        ? entry.attemptsLog
+            .map((attempt) => normalizeAttemptLog(entry.quizId, attempt, entry))
+            .filter(Boolean)
+        : [];
+      return {
+        ...entry,
+        attemptsLog,
+        lastAttemptId: entry.lastAttemptId || attemptsLog[0]?.id || null,
+        bestAttemptId:
+          entry.bestAttemptId || attemptsLog.find((attempt) => attempt.score === entry.bestScore)?.id || null
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeAttemptLog(quizId, attempt = {}, fallbackEntry = {}) {
+  if (!attempt || typeof attempt !== "object") return null;
+  const answers = Array.isArray(attempt.answers) ? attempt.answers : [];
+  const score = typeof attempt.score === "number" ? attempt.score : Number(attempt.correctAnswers) || 0;
+  const total =
+    typeof attempt.total === "number"
+      ? attempt.total
+      : typeof fallbackEntry.total === "number"
+      ? fallbackEntry.total
+      : answers.length;
+  const playedAt = attempt.playedAt || fallbackEntry.lastPlayed || new Date().toISOString();
+  const corrections =
+    attempt.corrections && typeof attempt.corrections === "object" ? attempt.corrections : {};
+  const id = attempt.id || `${quizId || "quiz"}-${playedAt}`;
+  return {
+    ...attempt,
+    id,
+    answers,
+    score,
+    total,
+    playedAt,
+    corrections
+  };
+}
+
+function findHistoryEntryForQuiz(account, quizId) {
+  if (!account || !quizId) return null;
+  return (account.history || []).find((entry) => entry.quizId === quizId) || null;
 }
 
 function saveStoredAccounts(accounts) {
@@ -2967,6 +3024,13 @@ function handleLogout() {
   closeProfileDropdown();
 }
 
+function formatAttemptShortDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("nl-BE", { day: "2-digit", month: "short" });
+}
+
 function renderHistory(entries) {
   if (!historyList || !historyEmpty) return;
   if (!entries || !entries.length) {
@@ -2975,33 +3039,89 @@ function renderHistory(entries) {
     return;
   }
   historyEmpty.hidden = true;
-  const sorted = [...entries].sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed));
+  const sorted = [...entries].sort((a, b) => {
+    const timeA = new Date(a.lastPlayed || 0).getTime();
+    const timeB = new Date(b.lastPlayed || 0).getTime();
+    return timeB - timeA;
+  });
   historyList.innerHTML = sorted
     .map((entry) => {
-      const date = new Date(entry.lastPlayed);
-      const formatted = date.toLocaleDateString("nl-BE", {
-        day: "2-digit",
-        month: "short"
-      });
+      const formatted = formatAttemptShortDate(entry.lastPlayed);
+      const attemptsLog = Array.isArray(entry.attemptsLog)
+        ? [...entry.attemptsLog].sort((a, b) => {
+            const timeA = new Date(a.playedAt || 0).getTime();
+            const timeB = new Date(b.playedAt || 0).getTime();
+            return timeB - timeA;
+          })
+        : [];
+      const totalQuestions = typeof entry.total === "number" ? entry.total : 20;
+      const lastScore = typeof entry.lastScore === "number" ? entry.lastScore : 0;
+      const bestScore = typeof entry.bestScore === "number" ? entry.bestScore : lastScore;
+      const attemptsCount = typeof entry.attempts === "number" ? entry.attempts : attemptsLog.length || 0;
+      const attemptButtons = attemptsLog
+        .slice(0, 3)
+        .map((attempt) => {
+          const attemptTotal = typeof attempt.total === "number" ? attempt.total : totalQuestions;
+          const attemptScore = typeof attempt.score === "number" ? attempt.score : 0;
+          const dateLabel = formatAttemptShortDate(attempt.playedAt) || "Onbekend";
+          const attemptLabel = `${dateLabel} • ${attemptScore}/${attemptTotal}`;
+          return `
+            <button class="history-entry__attempt" data-action="view" data-quiz-id="${entry.quizId}" data-attempt-id="${attempt.id}">${attemptLabel}</button>
+          `;
+        })
+        .join("");
+      const attemptsSection = `
+        <div class="history-entry__attempts">
+          <p class="history-entry__attempts-label">Recente pogingen</p>
+          ${
+            attemptsLog.length
+              ? `
+                  <div class="history-entry__attempts-list">${attemptButtons}</div>
+                  ${
+                    attemptsLog.length > 3
+                      ? `<span class="history-entry__more">+ ${attemptsLog.length - 3} oudere pogingen</span>`
+                      : ""
+                  }
+                `
+              : '<p class="history-entry__empty">Speel deze quiz om je antwoorden te bewaren.</p>'
+          }
+        </div>
+      `;
       return `
         <li>
           <div>
             <strong>${entry.quizTitle}</strong>
-            <small>Laatste: ${entry.lastScore} / ${entry.total} • Beste: ${entry.bestScore} / ${entry.total} • ${entry.attempts} pogingen • ${formatted}</small>
+            <small>Laatste: ${lastScore} / ${totalQuestions} ${formatted ? `• ${formatted}` : ""} • Beste: ${bestScore} / ${
+        totalQuestions
+      } • ${attemptsCount} pogingen</small>
           </div>
-          <button class="btn ghost" data-quiz-id="${entry.quizId}">Verbeter</button>
+          ${attemptsSection}
+          <div class="history-entry__actions">
+            <button class="btn ghost" data-action="replay" data-quiz-id="${entry.quizId}">Speel opnieuw</button>
+          </div>
         </li>
       `;
     })
     .join("");
 }
 
-function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions) {
+function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions, answers = []) {
   const account = getCurrentAccount();
-  if (!account) return;
+  if (!account) return null;
   const updatedAccount = { ...account };
   const history = Array.isArray(updatedAccount.history) ? [...updatedAccount.history] : [];
   const timestamp = new Date().toISOString();
+  const attemptRecord = {
+    id: `${quiz.id}-${Date.now()}`,
+    quizId: quiz.id,
+    answers: Array.isArray(answers)
+      ? answers.map((value) => (typeof value === "number" ? value : null))
+      : [],
+    score: correctAnswers,
+    total: totalQuestions,
+    playedAt: timestamp,
+    corrections: {}
+  };
   const entryIndex = history.findIndex((entry) => entry.quizId === quiz.id);
   if (entryIndex > -1) {
     const existingEntry = { ...history[entryIndex] };
@@ -3010,6 +3130,12 @@ function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions) {
     existingEntry.total = totalQuestions;
     existingEntry.bestScore = Math.max(existingEntry.bestScore || 0, correctAnswers);
     existingEntry.lastPlayed = timestamp;
+    existingEntry.lastAttemptId = attemptRecord.id;
+    if (existingEntry.bestScore === correctAnswers) {
+      existingEntry.bestAttemptId = attemptRecord.id;
+    }
+    const attemptsLog = Array.isArray(existingEntry.attemptsLog) ? [...existingEntry.attemptsLog] : [];
+    existingEntry.attemptsLog = [attemptRecord, ...attemptsLog].slice(0, MAX_STORED_ATTEMPTS);
     history[entryIndex] = existingEntry;
   } else {
     history.push({
@@ -3019,13 +3145,17 @@ function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions) {
       lastScore: correctAnswers,
       bestScore: correctAnswers,
       total: totalQuestions,
-      lastPlayed: timestamp
+      lastPlayed: timestamp,
+      attemptsLog: [attemptRecord],
+      lastAttemptId: attemptRecord.id,
+      bestAttemptId: attemptRecord.id
     });
   }
   updatedAccount.history = history;
   accountState.accounts[updatedAccount.email] = updatedAccount;
   saveStoredAccounts(accountState.accounts);
   updateProfileUI();
+  return attemptRecord;
 }
 
 function setFullScreenMode(isEnabled, { resetUrl = false } = {}) {
@@ -3155,6 +3285,9 @@ function startQuiz(id) {
   state.currentIndex = 0;
   state.answers = Array(quiz.questions.length).fill(null);
   state.selectedOption = null;
+  state.activeAttemptId = null;
+  state.activeAttemptCorrections = {};
+  state.activeAttemptPlayedAt = null;
   quizTitle.textContent = quiz.title;
   quizLevel.textContent = quiz.level;
   togglePanels("quiz");
@@ -3249,12 +3382,60 @@ function animateQuestionZone() {
 
 function showResults() {
   const quiz = state.currentQuiz;
+  if (!quiz) return;
   const correctAnswers = state.answers.filter(
     (selected, index) => selected === quiz.questions[index].answer
   ).length;
-  const scoreOn20 = (correctAnswers / quiz.questions.length) * 20;
+  const attemptRecord = saveResultForCurrentUser(
+    quiz,
+    correctAnswers,
+    quiz.questions.length,
+    state.answers
+  );
+
+  if (attemptRecord) {
+    state.activeAttemptId = attemptRecord.id;
+    state.activeAttemptPlayedAt = attemptRecord.playedAt;
+    state.activeAttemptCorrections = attemptRecord.corrections || {};
+  } else {
+    state.activeAttemptId = null;
+    state.activeAttemptPlayedAt = new Date().toISOString();
+    state.activeAttemptCorrections = {};
+  }
+
+  renderResultView(quiz, state.answers, {
+    attemptId: state.activeAttemptId,
+    corrections: state.activeAttemptCorrections,
+    playedAt: state.activeAttemptPlayedAt
+  });
+}
+
+function renderResultView(quiz, answers, { attemptId = null, corrections = {}, playedAt = null } = {}) {
+  if (!quiz || !resultTitle || !resultScore || !resultDetails) return;
+  const totalQuestions = quiz.questions.length;
+  const correctAnswers = answers.filter(
+    (selected, index) => selected === quiz.questions[index].answer
+  ).length;
+  const scoreOn20 = (correctAnswers / totalQuestions) * 20;
   resultTitle.textContent = quiz.title;
-  resultScore.innerHTML = `<span class="result-score">${scoreOn20.toFixed(1)} / 20</span><br>${correctAnswers} van ${quiz.questions.length} juist`;
+  resultScore.innerHTML = `<span class="result-score">${scoreOn20.toFixed(1)} / 20</span><br>${correctAnswers} van ${totalQuestions} juist`;
+
+  if (resultMeta) {
+    if (attemptId && playedAt) {
+      const attemptDate = new Date(playedAt);
+      if (!Number.isNaN(attemptDate.getTime())) {
+        const formatted = attemptDate.toLocaleString("nl-BE", {
+          dateStyle: "medium",
+          timeStyle: "short"
+        });
+        resultMeta.textContent = `Poging van ${formatted}`;
+      } else {
+        resultMeta.textContent = "Opgeslagen poging";
+      }
+    } else {
+      resultMeta.textContent = "Niet opgeslagen – log in om je resultaten bij te houden.";
+    }
+  }
 
   const hasHighScore = scoreOn20 >= 15;
   if (resultCelebration) {
@@ -3263,25 +3444,58 @@ function showResults() {
       : "";
   }
 
-  saveResultForCurrentUser(quiz, correctAnswers, quiz.questions.length);
+  const account = getCurrentAccount();
+  const canSaveCorrections = Boolean(attemptId && account);
 
   const detailsMarkup = quiz.questions
     .map((question, idx) => {
-      const selected = state.answers[idx];
-      const isCorrect = selected === question.answer;
+      const selected = answers[idx];
+      const hasAnswered = typeof selected === "number" && selected >= 0;
+      const isCorrect = hasAnswered && selected === question.answer;
+      const answerLabel =
+        hasAnswered && question.options[selected]
+          ? `${letters[selected]} – ${question.options[selected]}`
+          : "(Niet ingevuld)";
+      const correctionChoice =
+        corrections && typeof corrections[idx] === "number" ? Number(corrections[idx]) : null;
+      const hasValidCorrection =
+        correctionChoice !== null && correctionChoice >= 0 && correctionChoice < question.options.length;
+      const correctionNote =
+        hasValidCorrection
+          ? `<p class="result-detail__correction-note">Jij gaf aan dat ${letters[correctionChoice]} – ${question.options[correctionChoice]} het juiste antwoord hoort te zijn.</p>`
+          : "";
+      const correctionControls = canSaveCorrections
+        ? `
+            <div class="result-detail__footer">
+              <button type="button" class="result-detail__flag" data-flag-question="${idx}" aria-expanded="false">Foutje?</button>
+              <div class="result-detail__flag-panel" data-panel="${idx}" hidden>
+                <p>Kies volgens jou het juiste antwoord:</p>
+                <div class="result-detail__choices">
+                  ${question.options
+                    .map(
+                      (option, optionIdx) => `
+                        <button type="button" class="result-detail__choice ${
+                          hasValidCorrection && correctionChoice === optionIdx ? "is-selected" : ""
+                        }" data-question-index="${idx}" data-correction-choice="${optionIdx}">${letters[optionIdx]} – ${option}</button>
+                      `
+                    )
+                    .join("")}
+                </div>
+              </div>
+            </div>
+          `
+        : "";
       return `
         <div class="result-detail ${isCorrect ? "correct" : "incorrect"}">
           <p><strong>${idx + 1}.</strong> ${question.prompt}</p>
-          <p>Jouw antwoord: ${
-            selected !== null
-              ? `${letters[selected]} – ${question.options[selected]}`
-              : "(Niet ingevuld)"
-          }</p>
+          <p>Jouw antwoord: ${answerLabel}</p>
           ${
             isCorrect
               ? '<p class="result-detail__note">Correct beantwoord</p>'
               : `<p>Correct: ${letters[question.answer]} – ${question.options[question.answer]}</p>`
           }
+          ${correctionNote}
+          ${correctionControls}
         </div>
       `;
     })
@@ -3292,12 +3506,121 @@ function showResults() {
   showScreen("results");
 }
 
+function showSavedAttempt(quizId, attemptId) {
+  const quiz = quizData.find((q) => q.id === quizId);
+  if (!quiz) return;
+  const account = getCurrentAccount();
+  if (!account) return;
+  const historyEntry = findHistoryEntryForQuiz(account, quizId);
+  if (!historyEntry || !Array.isArray(historyEntry.attemptsLog) || !historyEntry.attemptsLog.length) return;
+  const attempt = attemptId
+    ? historyEntry.attemptsLog.find((log) => log.id === attemptId)
+    : historyEntry.attemptsLog[0];
+  if (!attempt) return;
+  const savedAnswers = Array.isArray(attempt.answers) ? attempt.answers : [];
+  const answers = Array(quiz.questions.length)
+    .fill(null)
+    .map((_, idx) => (typeof savedAnswers[idx] === "number" ? savedAnswers[idx] : null));
+  state.currentQuiz = quiz;
+  state.currentIndex = 0;
+  state.selectedOption = null;
+  state.answers = answers;
+  state.activeAttemptId = attempt.id;
+  state.activeAttemptPlayedAt = attempt.playedAt;
+  state.activeAttemptCorrections = attempt.corrections || {};
+  renderResultView(quiz, state.answers, {
+    attemptId: attempt.id,
+    corrections: state.activeAttemptCorrections,
+    playedAt: attempt.playedAt
+  });
+}
+
+function toggleCorrectionPanel(questionIndex, button) {
+  if (!resultDetails || typeof questionIndex !== "number" || Number.isNaN(questionIndex)) return;
+  const panel = resultDetails.querySelector(`[data-panel="${questionIndex}"]`);
+  if (!panel || !button) return;
+  const willOpen = button.getAttribute("aria-expanded") !== "true";
+  resultDetails.querySelectorAll(".result-detail__flag").forEach((flagBtn) => {
+    if (flagBtn !== button) {
+      flagBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+  resultDetails.querySelectorAll("[data-panel]").forEach((otherPanel) => {
+    if (otherPanel !== panel) {
+      otherPanel.hidden = true;
+    }
+  });
+  button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  panel.hidden = !willOpen;
+}
+
+function saveCorrectionForCurrentUser(questionIndex, optionIndex) {
+  const normalizedQuestion = Number(questionIndex);
+  const normalizedOption = Number(optionIndex);
+  if (
+    Number.isNaN(normalizedQuestion) ||
+    Number.isNaN(normalizedOption) ||
+    !state.currentQuiz ||
+    state.activeAttemptId === null
+  ) {
+    return;
+  }
+  const question = state.currentQuiz.questions[normalizedQuestion];
+  if (!question || normalizedOption < 0 || normalizedOption >= question.options.length) {
+    return;
+  }
+  const account = getCurrentAccount();
+  if (!account) return;
+  const updatedAccount = { ...account };
+  const history = Array.isArray(updatedAccount.history) ? [...updatedAccount.history] : [];
+  const entryIndex = history.findIndex((entry) => entry.quizId === state.currentQuiz.id);
+  if (entryIndex === -1) return;
+  const entry = { ...history[entryIndex] };
+  const attemptsLog = Array.isArray(entry.attemptsLog)
+    ? entry.attemptsLog.map((attempt) => ({ ...attempt }))
+    : [];
+  const attemptIndex = attemptsLog.findIndex((attempt) => attempt.id === state.activeAttemptId);
+  if (attemptIndex === -1) return;
+  const attempt = { ...attemptsLog[attemptIndex] };
+  attempt.corrections = { ...(attempt.corrections || {}), [normalizedQuestion]: normalizedOption };
+  attemptsLog[attemptIndex] = attempt;
+  entry.attemptsLog = attemptsLog;
+  history[entryIndex] = entry;
+  updatedAccount.history = history;
+  accountState.accounts[updatedAccount.email] = updatedAccount;
+  saveStoredAccounts(accountState.accounts);
+  state.activeAttemptCorrections = attempt.corrections;
+  updateProfileUI();
+  renderResultView(state.currentQuiz, state.answers, {
+    attemptId: state.activeAttemptId,
+    corrections: state.activeAttemptCorrections,
+    playedAt: state.activeAttemptPlayedAt
+  });
+}
+
 const backToMenu = document.getElementById("backToMenu");
 const resultsRetry = document.getElementById("resultsRetry");
 const resultsBackToCatalog = document.getElementById("resultsBackToCatalog");
 const resultsGoHome = document.getElementById("resultsGoHome");
 const scrollToQuizzes = document.getElementById("scrollToQuizzes");
 const goToLanding = document.getElementById("goToLanding");
+
+if (resultDetails) {
+  resultDetails.addEventListener("click", (event) => {
+    const flagButton = event.target.closest("[data-flag-question]");
+    if (flagButton) {
+      const questionIndex = Number(flagButton.dataset.flagQuestion);
+      toggleCorrectionPanel(questionIndex, flagButton);
+      return;
+    }
+    const choiceButton = event.target.closest("[data-correction-choice]");
+    if (choiceButton) {
+      const questionIndex = Number(choiceButton.dataset.questionIndex);
+      const optionIndex = Number(choiceButton.dataset.correctionChoice);
+      saveCorrectionForCurrentUser(questionIndex, optionIndex);
+    }
+  });
+}
 
 function showScreen(target) {
   if (!screens.length) return;
@@ -3422,9 +3745,14 @@ if (historyList) {
     const button = event.target.closest("button[data-quiz-id]");
     if (!button) return;
     const quizId = button.dataset.quizId;
+    const action = button.dataset.action || "replay";
     closeProfileDropdown();
-    openCatalogView();
-    startQuiz(quizId);
+    if (action === "view") {
+      showSavedAttempt(quizId, button.dataset.attemptId || null);
+    } else {
+      openCatalogView();
+      startQuiz(quizId);
+    }
   });
 }
 
