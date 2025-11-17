@@ -2529,6 +2529,23 @@ const screens = document.querySelectorAll("[data-screen]");
 const catalogScreen = document.getElementById("catalogScreen");
 const openFullScreenBtn = document.getElementById("openFullScreen");
 const bodyEl = document.body;
+const profileToggle = document.getElementById("profileToggle");
+const profileDropdown = document.getElementById("profileDropdown");
+const profileToggleLabel = document.getElementById("profileToggleLabel");
+const profileAvatar = document.getElementById("profileAvatar");
+const profileAvatarLarge = document.getElementById("profileAvatarLarge");
+const profileLoggedOut = document.getElementById("profileLoggedOut");
+const profileLoggedIn = document.getElementById("profileLoggedIn");
+const authForm = document.getElementById("authForm");
+const authEmailInput = document.getElementById("authEmail");
+const authPasswordInput = document.getElementById("authPassword");
+const authFeedback = document.getElementById("authFeedback");
+const googleLoginBtn = document.getElementById("googleLogin");
+const logoutBtn = document.getElementById("logoutBtn");
+const profileEmailEl = document.getElementById("profileEmail");
+const profileProviderEl = document.getElementById("profileProvider");
+const historyList = document.getElementById("historyList");
+const historyEmpty = document.getElementById("historyEmpty");
 
 const menuSections = [
   {
@@ -2556,8 +2573,261 @@ const state = {
   answers: []
 };
 
+const storageKeys = {
+  accounts: "anatomie_accounts",
+  currentUser: "anatomie_current_user"
+};
+
+const accountState = {
+  accounts: loadStoredAccounts(),
+  currentUser: loadStoredCurrentUser()
+};
+
 const letters = ["A", "B", "C", "D"];
 const questionAnimationClass = "question-zone--animate";
+
+function loadStoredAccounts() {
+  if (typeof window === "undefined" || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(storageKeys.accounts);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.warn("Kan accounts niet laden", error);
+    return {};
+  }
+}
+
+function saveStoredAccounts(accounts) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(storageKeys.accounts, JSON.stringify(accounts));
+}
+
+function loadStoredCurrentUser() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  return window.localStorage.getItem(storageKeys.currentUser);
+}
+
+function persistCurrentUser(email) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  if (email) {
+    window.localStorage.setItem(storageKeys.currentUser, email);
+  } else {
+    window.localStorage.removeItem(storageKeys.currentUser);
+  }
+}
+
+function setCurrentUser(email) {
+  accountState.currentUser = email;
+  persistCurrentUser(email);
+}
+
+function getCurrentAccount() {
+  if (!accountState.currentUser) return null;
+  return accountState.accounts[accountState.currentUser] || null;
+}
+
+function createAccount(email, { password = "", method = "password" } = {}) {
+  return {
+    email,
+    password,
+    methods: {
+      password: method === "password",
+      google: method === "google"
+    },
+    history: [],
+    createdAt: new Date().toISOString(),
+    lastLoginProvider: method
+  };
+}
+
+function setAuthFeedback(message = "", variant = "success") {
+  if (!authFeedback) return;
+  authFeedback.textContent = message;
+  authFeedback.classList.remove("profile-feedback--error", "profile-feedback--success");
+  if (!message) return;
+  authFeedback.classList.add(variant === "error" ? "profile-feedback--error" : "profile-feedback--success");
+}
+
+function updateProfileUI() {
+  if (accountState.currentUser && !accountState.accounts[accountState.currentUser]) {
+    setCurrentUser(null);
+  }
+  const account = getCurrentAccount();
+  const isLoggedIn = Boolean(account);
+  if (profileLoggedOut && profileLoggedIn) {
+    profileLoggedOut.classList.toggle("profile-dropdown__section--hidden", isLoggedIn);
+    profileLoggedIn.classList.toggle("profile-dropdown__section--hidden", !isLoggedIn);
+  }
+
+  const fallbackLabel = "Jouw profiel";
+  const displayLabel = isLoggedIn ? account.email : fallbackLabel;
+  if (profileToggleLabel) {
+    profileToggleLabel.textContent = displayLabel;
+  }
+  const avatarLetter = isLoggedIn ? account.email.charAt(0).toUpperCase() : "A";
+  if (profileAvatar) {
+    profileAvatar.textContent = avatarLetter;
+  }
+  if (profileAvatarLarge) {
+    profileAvatarLarge.textContent = avatarLetter;
+  }
+  if (isLoggedIn && profileEmailEl && profileProviderEl) {
+    profileEmailEl.textContent = account.email;
+    const providerLabel = account.lastLoginProvider === "google" ? "Ingelogd via Google" : "Ingelogd met wachtwoord";
+    profileProviderEl.textContent = providerLabel;
+  }
+  if (!isLoggedIn && historyList) {
+    historyList.innerHTML = "";
+  }
+  if (!isLoggedIn && historyEmpty) {
+    historyEmpty.hidden = false;
+  }
+  if (isLoggedIn) {
+    renderHistory(account.history || []);
+  }
+}
+
+function toggleProfileDropdown(forceOpen) {
+  if (!profileDropdown || !profileToggle) return;
+  const willOpen = typeof forceOpen === "boolean" ? forceOpen : !profileDropdown.classList.contains("is-open");
+  profileDropdown.classList.toggle("is-open", willOpen);
+  profileToggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+}
+
+function closeProfileDropdown() {
+  toggleProfileDropdown(false);
+}
+
+function handleCredentialLogin(event) {
+  event.preventDefault();
+  if (!authEmailInput || !authPasswordInput) return;
+  const email = authEmailInput.value.trim().toLowerCase();
+  const password = authPasswordInput.value.trim();
+  if (!email || password.length < 4) {
+    setAuthFeedback("Vul een geldig e-mailadres en wachtwoord (min. 4 tekens) in.", "error");
+    return;
+  }
+  const accounts = { ...accountState.accounts };
+  const existing = accounts[email];
+  if (existing && existing.methods?.password && existing.password && existing.password !== password) {
+    setAuthFeedback("Dit wachtwoord komt niet overeen met je account.", "error");
+    return;
+  }
+  if (!existing) {
+    accounts[email] = createAccount(email, { password, method: "password" });
+  } else {
+    existing.password = password;
+    existing.methods = {
+      password: true,
+      google: Boolean(existing.methods?.google)
+    };
+    existing.lastLoginProvider = "password";
+  }
+  accountState.accounts = accounts;
+  saveStoredAccounts(accounts);
+  setCurrentUser(email);
+  updateProfileUI();
+  setAuthFeedback(existing ? "Succesvol ingelogd." : "Account aangemaakt.");
+  if (authForm) {
+    authForm.reset();
+  }
+}
+
+function handleGoogleLogin() {
+  if (!authEmailInput) return;
+  const email = authEmailInput.value.trim().toLowerCase();
+  if (!email) {
+    setAuthFeedback("Vul je e-mailadres in om Google-login te gebruiken.", "error");
+    return;
+  }
+  const accounts = { ...accountState.accounts };
+  const existing = accounts[email];
+  if (!existing) {
+    accounts[email] = createAccount(email, { password: "", method: "google" });
+  } else {
+    existing.methods = {
+      password: Boolean(existing.methods?.password),
+      google: true
+    };
+    existing.lastLoginProvider = "google";
+  }
+  accountState.accounts = accounts;
+  saveStoredAccounts(accounts);
+  setCurrentUser(email);
+  updateProfileUI();
+  setAuthFeedback("Ingelogd via Google.");
+  if (authForm) {
+    authForm.reset();
+  }
+}
+
+function handleLogout() {
+  setCurrentUser(null);
+  updateProfileUI();
+  setAuthFeedback("Je bent uitgelogd.");
+  closeProfileDropdown();
+}
+
+function renderHistory(entries) {
+  if (!historyList || !historyEmpty) return;
+  if (!entries || !entries.length) {
+    historyList.innerHTML = "";
+    historyEmpty.hidden = false;
+    return;
+  }
+  historyEmpty.hidden = true;
+  const sorted = [...entries].sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed));
+  historyList.innerHTML = sorted
+    .map((entry) => {
+      const date = new Date(entry.lastPlayed);
+      const formatted = date.toLocaleDateString("nl-BE", {
+        day: "2-digit",
+        month: "short"
+      });
+      return `
+        <li>
+          <div>
+            <strong>${entry.quizTitle}</strong>
+            <small>Laatste: ${entry.lastScore} / ${entry.total} • Beste: ${entry.bestScore} / ${entry.total} • ${entry.attempts} pogingen • ${formatted}</small>
+          </div>
+          <button class="btn ghost" data-quiz-id="${entry.quizId}">Verbeter</button>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+function saveResultForCurrentUser(quiz, correctAnswers, totalQuestions) {
+  const account = getCurrentAccount();
+  if (!account) return;
+  const updatedAccount = { ...account };
+  const history = Array.isArray(updatedAccount.history) ? [...updatedAccount.history] : [];
+  const timestamp = new Date().toISOString();
+  const entryIndex = history.findIndex((entry) => entry.quizId === quiz.id);
+  if (entryIndex > -1) {
+    const existingEntry = { ...history[entryIndex] };
+    existingEntry.attempts = (existingEntry.attempts || 0) + 1;
+    existingEntry.lastScore = correctAnswers;
+    existingEntry.total = totalQuestions;
+    existingEntry.bestScore = Math.max(existingEntry.bestScore || 0, correctAnswers);
+    existingEntry.lastPlayed = timestamp;
+    history[entryIndex] = existingEntry;
+  } else {
+    history.push({
+      quizId: quiz.id,
+      quizTitle: quiz.title,
+      attempts: 1,
+      lastScore: correctAnswers,
+      bestScore: correctAnswers,
+      total: totalQuestions,
+      lastPlayed: timestamp
+    });
+  }
+  updatedAccount.history = history;
+  accountState.accounts[updatedAccount.email] = updatedAccount;
+  saveStoredAccounts(accountState.accounts);
+  updateProfileUI();
+}
 
 function setFullScreenMode(isEnabled, { resetUrl = false } = {}) {
   if (!bodyEl) return;
@@ -2790,9 +3060,11 @@ function showResults() {
   const hasHighScore = scoreOn20 >= 15;
   if (resultCelebration) {
     resultCelebration.innerHTML = hasHighScore
-      ? '<p class="result-card__celebration">🎉 Fantastische score – je beheerst dit onderwerp!</p>'
+      ? '<p class="result-card__celebration">🎊 Fantastische score – je beheerst dit onderwerp!</p>'
       : "";
   }
+
+  saveResultForCurrentUser(quiz, correctAnswers, quiz.questions.length);
 
   const detailsMarkup = quiz.questions
     .map((question, idx) => {
@@ -2895,6 +3167,57 @@ if (goToLanding) {
     setFullScreenMode(false, { resetUrl: true });
   });
 }
+
+if (profileToggle) {
+  profileToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleProfileDropdown();
+  });
+}
+
+if (profileDropdown) {
+  profileDropdown.addEventListener("click", (event) => event.stopPropagation());
+}
+
+document.addEventListener("click", (event) => {
+  if (!profileDropdown || !profileToggle) return;
+  if (profileDropdown.contains(event.target) || profileToggle.contains(event.target)) return;
+  closeProfileDropdown();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeProfileDropdown();
+  }
+});
+
+if (authForm) {
+  authForm.addEventListener("submit", handleCredentialLogin);
+}
+
+if (googleLoginBtn) {
+  googleLoginBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleGoogleLogin();
+  });
+}
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", handleLogout);
+}
+
+if (historyList) {
+  historyList.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-quiz-id]");
+    if (!button) return;
+    const quizId = button.dataset.quizId;
+    closeProfileDropdown();
+    openCatalogView();
+    startQuiz(quizId);
+  });
+}
+
+updateProfileUI();
 
 updateFullScreenButtonLabel();
 
